@@ -5,6 +5,7 @@ const navLinks = [
   { label: "SDK DOCS", href: "/docs" },
   { label: "ABOUT", href: "/#about" },
   { label: "TWITTER", href: "https://x.com/ZkMedusa", external: true },
+  { label: "TELEGRAM", href: "https://t.me/zkmedusa", external: true },
 ] as const;
 
 const linkClassName =
