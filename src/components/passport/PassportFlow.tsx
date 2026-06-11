@@ -12,7 +12,9 @@ import { evaluateEligibility, randomFieldSecret } from "@/lib/passport/eligibili
 import { isDevModeEnabled } from "@/lib/passport/dev";
 import {
   generatePassportProof,
+  preloadPassportProver,
   type GenerateProofResult,
+  type ProofProgressStep,
 } from "@/lib/passport/prover.client";
 import { createPassportFetchWithPayment } from "@/lib/passport/x402.client";
 import {
@@ -130,6 +132,9 @@ export default function PassportFlow() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [proofProgress, setProofProgress] = useState<ProofProgressStep | null>(
+    null,
+  );
   const [proofSecret] = useState(() => randomFieldSecret());
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -146,10 +151,35 @@ export default function PassportFlow() {
   );
 
   useEffect(() => {
+    preloadPassportProver();
+  }, []);
+
+  useEffect(() => {
     if (publicKey && phase === "connect") {
       setError(null);
     }
   }, [publicKey, phase]);
+
+  const proofProgressMessage = useMemo(() => {
+    if (isDevModeEnabled()) {
+      return "Creating local dev proof...";
+    }
+
+    switch (proofProgress) {
+      case "loading-runtime":
+        return "Loading ZK runtime (first visit may take a moment)...";
+      case "loading-circuit":
+        return "Loading passport circuit...";
+      case "executing-circuit":
+        return "Running circuit witness...";
+      case "initializing-prover":
+        return "Downloading prover data (one-time, ~30–90s)...";
+      case "generating-proof":
+        return "Generating ZK proof (this can take 1–3 minutes)...";
+      default:
+        return "Preparing ZK proof in your browser...";
+    }
+  }, [proofProgress]);
 
   const scanWallet = useCallback(async () => {
     if (!publicKey) {
@@ -181,6 +211,7 @@ export default function PassportFlow() {
     }
 
     setError(null);
+    setProofProgress(null);
     setPhase("proving");
 
     try {
@@ -189,6 +220,7 @@ export default function PassportFlow() {
         tier: eligibility.tier,
         publicInputs,
         secret: proofSecret,
+        onProgress: setProofProgress,
       });
       setProofResult(nextProof);
       setPhase("paying");
@@ -199,6 +231,8 @@ export default function PassportFlow() {
           : "Unable to generate proof.",
       );
       setPhase("review");
+    } finally {
+      setProofProgress(null);
     }
   }, [eligibility, proofSecret, publicInputs, witness]);
 
@@ -219,6 +253,7 @@ export default function PassportFlow() {
           tier: eligibility.tier,
           publicInputs,
           secret: proofSecret,
+          onProgress: setProofProgress,
         });
         setProofResult(activeProof);
       } else {
@@ -421,13 +456,7 @@ export default function PassportFlow() {
             title="Generating proof"
             description="Creating a zero-knowledge proof of your eligibility. Your wallet address is not included in the proof."
           >
-            <LoadingState
-              message={
-                isDevModeEnabled()
-                  ? "Creating local dev proof..."
-                  : "Generating ZK proof in your browser..."
-              }
-            />
+            <LoadingState message={proofProgressMessage} />
           </StepCard>
         )}
 

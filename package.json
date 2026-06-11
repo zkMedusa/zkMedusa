@@ -11,6 +11,8 @@
     "build:sdk": "npm run build --workspace=@medusa/passport-sdk",
     "start": "next start",
     "lint": "next lint",
+    "copy:noir-wasm": "node scripts/copy-noir-wasm.mjs",
+    "postinstall": "node scripts/copy-noir-wasm.mjs",
     "compile:circuit": "node scripts/compile-circuit.mjs",
     "passport:keys": "node scripts/generate-issuer-keys.mjs"
   },
