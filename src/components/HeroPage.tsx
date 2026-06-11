@@ -25,6 +25,9 @@ const HeroPage = () => {
       <h1 className="absolute text-4xl md:text-6xl text-black z-20 [text-shadow:_-2px_2px_0_#fff,_2px_2px_0_#fff,_2px_-2px_0_#fff,_-2px_-2px_0_#fff] font-['BlueScreen']">
         MEDUSA
       </h1>
+      <p className="absolute top-[58%] md:top-[62%] text-[10px] md:text-sm text-black z-20 [text-shadow:_-1px_1px_0_#fff,_1px_1px_0_#fff,_1px_-1px_0_#fff,_-1px_-1px_0_#fff] font-['PerfectDOS'] uppercase tracking-wider text-center px-4">
+        Prove your wallet. Reveal nothing. ZK · x402 · Solana
+      </p>
       <img
         src="/head.webp"
         alt="head"

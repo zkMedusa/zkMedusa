@@ -4,13 +4,12 @@ const navLinks = [
   { label: "PASSPORT", href: "/passport" },
   { label: "SDK DOCS", href: "/docs" },
   {
-    label: "PUMPFUN",
-    href: "https://pump.fun/J7QoLWaBuqGuD1RL89BNa7hBDYbQtEm8i91MhbN8pump",
+    label: "PUMP.FUN",
+    href: "https://pump.fun/",
     external: true,
   },
   { label: "ABOUT", href: "/#about" },
-  { label: "TWITTER", href: "https://x.com/m3dusadao", external: true },
-  { label: "TELEGRAM", href: "https://t.me/MedusaDAOPortal", external: true },
+  { label: "TWITTER", href: "https://x.com/", external: true },
 ] as const;
 
 const linkClassName =

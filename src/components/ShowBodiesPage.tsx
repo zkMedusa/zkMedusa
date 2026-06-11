@@ -12,35 +12,18 @@ const ShowBodiesPage = () => {
           />
           <div className="text-white font-['PerfectDOS'] p-4">
             <p className="mb-4 flex flex-col text-sm md:text-base uppercase">
-              Join Medusa, a decentralized memecoin incubator that empowers individuals to collaborate, create, and drive the future of Web3. Whether you’re a developer, designer, influencer, or investor, Medusa’s DAO-driven ecosystem provides the perfect environment to bring ideas to life. Be part of our growing community and help shape the next wave of decentralized innovation.
+              Medusa is building private credentials for Solana — ZK proofs for reputation, x402 for issuance, and an SDK for apps that want verification without surveillance. Mint your passport or integrate the SDK.
             </p>
           </div>
         </div>
-        <div
-            className="flex flex-col md:flex-col justify-center md:justify-start items-center md:items-start px-4 md:pl-10 mt-4 space-y-4 md:space-y-4">
-          <a href="https://t.me/MedusaDAOPortal" target="_blank" rel="noopener noreferrer">
+        <div className="flex flex-col md:flex-col justify-center md:justify-start items-center md:items-start px-4 md:pl-10 mt-4">
+          <a href="https://x.com/" target="_blank" rel="noopener noreferrer">
             <img
-                src="/telegram.png"
-                alt="Show Bodies"
-                className="w-full md:w-auto py-2"
+              src="/twitter.png"
+              alt="Twitter"
+              className="w-full md:w-auto py-2"
             />
           </a>
-          <a href="https://x.com/m3dusadao" target="_blank" rel="noopener noreferrer">
-            <img
-                src="/twitter.png"
-                alt="Show Bodies"
-                className="w-full md:w-auto py-2"
-            />
-          </a>
-          {/*
-          <a href="/" target="_blank" rel="noopener noreferrer">
-            <img
-                src="dex.png"
-                alt="Show Bodies"
-                className="w-full md:w-auto py-2"
-            />
-          </a>
-          */}
         </div>
       </div>
       <div className="w-full md:w-[calc(30%-1rem)] flex flex-col justify-center items-center p-4">

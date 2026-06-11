@@ -3,9 +3,9 @@ import "./globals.css";
 import AppProviders from "@/providers/AppProviders";
 
 export const metadata: Metadata = {
-  title: "Medusa",
+  title: "Medusa — Private Wallet Credentials on Solana",
   description:
-    "Medusa is a decentralized memecoin incubator that allows anyone to turn an idea into a fully realized web3 project.",
+    "Prove wallet reputation without revealing your address. Medusa Passport uses zero-knowledge proofs and x402 USDC payments on Solana, with a partner SDK for privacy-preserving verification.",
 };
 
 export default function RootLayout({

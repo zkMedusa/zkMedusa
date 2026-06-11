@@ -16,7 +16,7 @@ const PillarPage = () => {
             &#47;&#47; MEDUSA
         </h1>
         <p className="text-white text-center xl:pb-20 text-xs md:text-base max-w-[240px] md:max-w-xl lg:max-w-2xl mb-4 md:mb-8 uppercase leading-relaxed font-['PerfectDOS'] mt-3 md:mt-8 lg:mt-10">
-            Medusa is a decentralized memecoin incubator that allows anyone, at any time, to turn an idea into a fully realized web3 project. This decentralized process is supported by a DAO.
+            Medusa is a privacy project on Solana. Apps often need proof that a wallet is real and active — but asking you to connect and expose your full history is surveillance. We issue a passport backed by zero-knowledge proofs so you can prove eligibility without revealing your address or balances.
         </p>
       </div>
 
