@@ -3,11 +3,6 @@ import Link from "next/link";
 const navLinks = [
   { label: "PASSPORT", href: "/passport" },
   { label: "SDK DOCS", href: "/docs" },
-  {
-    label: "PUMP.FUN",
-    href: "https://pump.fun/",
-    external: true,
-  },
   { label: "ABOUT", href: "/#about" },
   { label: "TWITTER", href: "https://x.com/ZkMedusa", external: true },
 ] as const;

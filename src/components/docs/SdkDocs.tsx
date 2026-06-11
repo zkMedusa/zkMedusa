@@ -29,6 +29,8 @@ function Section({
 }
 
 export default function SdkDocs({ baseUrl, issuerPublicKey }: SdkDocsProps) {
+  const npmPackageUrl =
+    "https://www.npmjs.com/package/@zkmedusa/passport-sdk";
   const installCode = `npm install @zkmedusa/passport-sdk`;
 
   const verifyLocalCode = `import {
@@ -180,6 +182,14 @@ MEDUSA_PARTNER_API_KEYS=my-presale-q3:sk_live_partner_key,dao-whitelist:sk_live_
               ))}
             </nav>
             <div className="hidden lg:block space-y-2 font-['PerfectDOS'] text-xs uppercase text-white/60">
+              <a
+                href={npmPackageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block hover:text-white"
+              >
+                → npm package
+              </a>
               <Link href="/passport" className="block hover:text-white">
                 → Get a passport
               </Link>
@@ -197,7 +207,14 @@ MEDUSA_PARTNER_API_KEYS=my-presale-q3:sk_live_partner_key,dao-whitelist:sk_live_
                 for gated access.
               </p>
               <div className="flex flex-wrap gap-3 font-['PerfectDOS'] text-xs uppercase">
-                <span className="border border-white/30 px-3 py-1">npm package</span>
+                <a
+                  href={npmPackageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="border border-white/30 px-3 py-1 hover:bg-white hover:text-black transition-colors"
+                >
+                  npm package
+                </a>
                 <span className="border border-white/30 px-3 py-1">node + browser</span>
                 <span className="border border-white/30 px-3 py-1">solana</span>
               </div>
@@ -218,16 +235,18 @@ MEDUSA_PARTNER_API_KEYS=my-presale-q3:sk_live_partner_key,dao-whitelist:sk_live_
             </Section>
 
             <Section id="install" title="Install">
-              <CodeBlock title="Terminal" code={installCode} language="bash" />
               <p>
-                Package location in this repo:{" "}
-                <span className="text-white normal-case">packages/medusa-passport-sdk</span>
+                Published on npm:{" "}
+                <a
+                  href={npmPackageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-white underline underline-offset-4 hover:text-white/80 normal-case"
+                >
+                  @zkmedusa/passport-sdk
+                </a>
               </p>
-              <CodeBlock
-                title="Build from monorepo"
-                code="npm run build:sdk"
-                language="bash"
-              />
+              <CodeBlock title="Terminal" code={installCode} language="bash" />
             </Section>
 
             <Section id="verify" title="Verify">
