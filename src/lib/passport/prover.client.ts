@@ -1,10 +1,10 @@
 "use client";
 
+import { UltraHonkBackend } from "@aztec/bb.js";
 import {
-  Barretenberg,
-  BackendType,
-  UltraHonkBackend,
-} from "@aztec/bb.js";
+  ensureBarretenbergForCircuit,
+  preloadBarretenbergForCircuit,
+} from "./barretenberg.client";
 import { Noir } from "@noir-lang/noir_js";
 import { getPublicInputs } from "./config";
 import {
@@ -33,7 +33,6 @@ export type ProofProgressStep =
 const PROOF_TIMEOUT_MS = 15 * 60 * 1000;
 
 let noirInitPromise: Promise<void> | null = null;
-let barretenbergPromise: Promise<Barretenberg> | null = null;
 let cachedCircuit: CompiledCircuit | null = null;
 
 async function ensureNoirInitialized(): Promise<void> {
@@ -65,19 +64,6 @@ async function ensureNoirInitialized(): Promise<void> {
   })();
 
   return noirInitPromise;
-}
-
-async function getBarretenberg(): Promise<Barretenberg> {
-  if (!barretenbergPromise) {
-    // Must match Noir compiler version — see bb-versions.json for noir 1.0.0-beta.22
-    barretenbergPromise = Barretenberg.new({
-      threads: 1,
-      backend: BackendType.Wasm,
-      memory: { initial: 2048, maximum: 65536 },
-    });
-  }
-
-  return barretenbergPromise;
 }
 
 async function loadCircuit(): Promise<CompiledCircuit> {
@@ -178,7 +164,7 @@ async function generatePassportProofInternal(
   }
 
   report("initializing-prover");
-  const bb = await getBarretenberg();
+  const bb = await ensureBarretenbergForCircuit(circuit);
   const backend = new UltraHonkBackend(circuit.bytecode, bb);
 
   report("generating-proof");
@@ -221,6 +207,12 @@ function formatProverError(
     if (message.includes("Circuit execution failed")) {
       return new Error(
         `${message}. Rescan your wallet and try again.`,
+      );
+    }
+
+    if (message.includes("invalid points_buf size")) {
+      return new Error(
+        "ZK prover CRS data was outdated. Hard-refresh the page (Ctrl+Shift+R) and try again.",
       );
     }
 
@@ -297,7 +289,10 @@ export function preloadPassportProver(): void {
     }
 
     void ensureNoirInitialized().catch(() => undefined);
-    void getBarretenberg().catch(() => undefined);
-    void loadCircuit().catch(() => undefined);
+    void loadCircuit()
+      .then((circuit) => {
+        preloadBarretenbergForCircuit(circuit);
+      })
+      .catch(() => undefined);
   });
 }

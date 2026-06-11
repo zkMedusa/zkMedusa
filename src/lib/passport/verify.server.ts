@@ -1,6 +1,7 @@
-import { Barretenberg, UltraHonkBackend } from "@aztec/bb.js";
+import { UltraHonkBackend } from "@aztec/bb.js";
 import fs from "node:fs";
 import path from "node:path";
+import { ensureServerBarretenberg } from "./barretenberg.server";
 import { normalizeCompiledCircuit } from "./circuit";
 import type { ZkProofBundle } from "./types";
 import type { CompiledCircuit } from "@noir-lang/types";
@@ -39,7 +40,7 @@ export async function verifyZkProofBundle(
   }
 
   const circuit = loadCircuitFromDisk();
-  const bb = await Barretenberg.new();
+  const bb = await ensureServerBarretenberg(circuit);
   const backend = new UltraHonkBackend(circuit.bytecode, bb);
   const proofBytes = Buffer.from(zkProof.proof, "base64");
 
