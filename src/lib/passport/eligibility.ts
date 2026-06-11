@@ -5,7 +5,11 @@ import {
   TIER_LABELS,
   type PassportTier,
 } from "./config";
-import type { EligibilityResult, WalletWitness } from "./types";
+import type {
+  EligibilityResult,
+  PassportPublicInputs,
+  WalletWitness,
+} from "./types";
 
 function getTierFromVolume(volumeLamports: number): PassportTier | null {
   const thresholds = PASSPORT_REQUIREMENTS.tierVolumeThresholdsLamports;
@@ -117,4 +121,57 @@ export function canonicalizePublicInputs(
 
 export function hashPublicInputs(publicInputs: Record<string, number>): string {
   return hashString(canonicalizePublicInputs(publicInputs));
+}
+
+export function assertCircuitWitness(
+  witness: WalletWitness,
+  tier: PassportTier,
+  publicInputs: PassportPublicInputs,
+): void {
+  const walletAgeSeconds =
+    publicInputs.current_timestamp - witness.firstTxTimestamp;
+
+  if (walletAgeSeconds < publicInputs.min_age_seconds) {
+    throw new Error(
+      `Wallet age (${Math.floor(walletAgeSeconds / 86400)} days) is below the minimum. Rescan your wallet and try again.`,
+    );
+  }
+
+  if (witness.transactionCount < publicInputs.min_tx_count) {
+    throw new Error(
+      `Transaction count (${witness.transactionCount}) is below the minimum. Rescan your wallet and try again.`,
+    );
+  }
+
+  const volume = witness.volumeLamports;
+  const { bronze_threshold, silver_threshold, gold_threshold } = publicInputs;
+
+  if (tier === PASSPORT_TIERS.GOLD) {
+    if (volume < gold_threshold) {
+      throw new Error(
+        "Volume no longer meets gold tier requirements. Rescan your wallet and try again.",
+      );
+    }
+    return;
+  }
+
+  if (tier === PASSPORT_TIERS.SILVER) {
+    if (volume < silver_threshold || volume >= gold_threshold) {
+      throw new Error(
+        "Volume no longer meets silver tier requirements. Rescan your wallet and try again.",
+      );
+    }
+    return;
+  }
+
+  if (tier === PASSPORT_TIERS.BRONZE) {
+    if (volume < bronze_threshold || volume >= silver_threshold) {
+      throw new Error(
+        "Volume no longer meets bronze tier requirements. Rescan your wallet and try again.",
+      );
+    }
+    return;
+  }
+
+  throw new Error("Invalid passport tier.");
 }

@@ -6,7 +6,9 @@ import {
   UltraHonkBackend,
 } from "@aztec/bb.js";
 import { Noir } from "@noir-lang/noir_js";
+import { getPublicInputs } from "./config";
 import {
+  assertCircuitWitness,
   deriveNullifier,
   hashPublicInputs,
 } from "./eligibility";
@@ -95,7 +97,6 @@ async function loadCircuit(): Promise<CompiledCircuit> {
 export interface GenerateProofInput {
   witness: WalletWitness;
   tier: PassportTier;
-  publicInputs: PassportPublicInputs;
   secret: string;
   onProgress?: (step: ProofProgressStep) => void;
 }
@@ -103,6 +104,7 @@ export interface GenerateProofInput {
 export interface GenerateProofResult {
   zkProof: ZkProofBundle;
   nullifier: string;
+  publicInputs: PassportPublicInputs;
 }
 
 export async function generatePassportProof(
@@ -122,8 +124,11 @@ async function generatePassportProofInternal(
     input.onProgress?.(step);
   };
 
+  const publicInputs = getPublicInputs(input.witness.fetchedAt);
+  assertCircuitWitness(input.witness, input.tier, publicInputs);
+
   const nullifierHash = hashPublicInputs({
-    ...input.publicInputs,
+    ...publicInputs,
     tier: input.tier,
   });
   const nullifier = deriveNullifier(input.secret, nullifierHash);
@@ -138,6 +143,7 @@ async function generatePassportProofInternal(
 
     return {
       nullifier,
+      publicInputs,
       zkProof: createDevProofBundle(input.tier),
     };
   }
@@ -150,35 +156,88 @@ async function generatePassportProofInternal(
   const noir = new Noir(circuit);
 
   report("executing-circuit");
-  const { witness } = await noir.execute({
-    first_tx_timestamp: input.witness.firstTxTimestamp.toString(),
-    tx_count: input.witness.transactionCount.toString(),
-    volume_lamports: input.witness.volumeLamports.toString(),
-    secret: toNoirFieldInput(input.secret),
-    current_timestamp: input.publicInputs.current_timestamp.toString(),
-    min_age_seconds: input.publicInputs.min_age_seconds.toString(),
-    min_tx_count: input.publicInputs.min_tx_count.toString(),
-    bronze_threshold: input.publicInputs.bronze_threshold.toString(),
-    silver_threshold: input.publicInputs.silver_threshold.toString(),
-    gold_threshold: input.publicInputs.gold_threshold.toString(),
-    tier: input.tier.toString(),
-  });
+  let witness: Uint8Array;
+  try {
+    ({ witness } = await noir.execute({
+      first_tx_timestamp: input.witness.firstTxTimestamp.toString(),
+      tx_count: input.witness.transactionCount.toString(),
+      volume_lamports: input.witness.volumeLamports.toString(),
+      secret: toNoirFieldInput(input.secret),
+      current_timestamp: publicInputs.current_timestamp.toString(),
+      min_age_seconds: publicInputs.min_age_seconds.toString(),
+      min_tx_count: publicInputs.min_tx_count.toString(),
+      bronze_threshold: publicInputs.bronze_threshold.toString(),
+      silver_threshold: publicInputs.silver_threshold.toString(),
+      gold_threshold: publicInputs.gold_threshold.toString(),
+      tier: input.tier.toString(),
+    }));
+  } catch (error) {
+    throw formatProverError(error, "executing-circuit");
+  }
 
   report("initializing-prover");
   const bb = await getBarretenberg();
   const backend = new UltraHonkBackend(circuit.bytecode, bb);
 
   report("generating-proof");
-  const proofData = await backend.generateProof(witness);
+  let proofData;
+  try {
+    proofData = await backend.generateProof(witness);
+  } catch (error) {
+    throw formatProverError(error, "generating-proof");
+  }
 
   return {
     nullifier,
+    publicInputs,
     zkProof: {
       proofType: "noir_ultrahonk",
       proof: uint8ArrayToBase64(new Uint8Array(proofData.proof)),
       publicInputs: proofData.publicInputs,
     },
   };
+}
+
+type EnrichedNoirError = Error & {
+  noirCallStack?: string[];
+};
+
+function formatProverError(
+  error: unknown,
+  step: ProofProgressStep,
+): Error {
+  if (error instanceof Error) {
+    const message = error.message;
+    const noirCallStack = (error as EnrichedNoirError).noirCallStack;
+
+    if (noirCallStack && noirCallStack.length > 0) {
+      return new Error(
+        `ZK circuit failed at ${noirCallStack.join(" ")}. Rescan your wallet and try again.`,
+      );
+    }
+
+    if (message.includes("Circuit execution failed")) {
+      return new Error(
+        `${message}. Rescan your wallet and try again.`,
+      );
+    }
+
+    if (message.includes("unreachable")) {
+      if (step === "executing-circuit") {
+        return new Error(
+          "ZK circuit rejected the wallet data. Rescan your wallet and try again.",
+        );
+      }
+
+      return new Error(
+        "ZK prover failed in the browser (often memory limits). Try desktop Chrome with fewer tabs open.",
+      );
+    }
+
+    return error;
+  }
+
+  return new Error(String(error));
 }
 
 function toNoirFieldInput(value: string): string {

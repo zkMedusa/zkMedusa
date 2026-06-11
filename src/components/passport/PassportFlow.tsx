@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import {
   getPassportIssuePriceLabel,
-  getPublicInputs,
   PASSPORT_REQUIREMENTS,
 } from "@/lib/passport/config";
 import { evaluateEligibility, randomFieldSecret } from "@/lib/passport/eligibility";
@@ -138,11 +137,6 @@ export default function PassportFlow() {
   const [proofSecret] = useState(() => randomFieldSecret());
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const publicInputs = useMemo(
-    () => getPublicInputs(Math.floor(Date.now() / 1000)),
-    [],
-  );
-
   const issuePriceLabel = useMemo(() => getPassportIssuePriceLabel(), []);
 
   const onboardingStep = getOnboardingStep(
@@ -218,7 +212,6 @@ export default function PassportFlow() {
       const nextProof = await generatePassportProof({
         witness,
         tier: eligibility.tier,
-        publicInputs,
         secret: proofSecret,
         onProgress: setProofProgress,
       });
@@ -234,7 +227,7 @@ export default function PassportFlow() {
     } finally {
       setProofProgress(null);
     }
-  }, [eligibility, proofSecret, publicInputs, witness]);
+  }, [eligibility, proofSecret, witness]);
 
   const payAndIssue = useCallback(async () => {
     if (!publicKey || !witness || !eligibility?.tier || !signAllTransactions) {
@@ -251,7 +244,6 @@ export default function PassportFlow() {
         activeProof = await generatePassportProof({
           witness,
           tier: eligibility.tier,
-          publicInputs,
           secret: proofSecret,
           onProgress: setProofProgress,
         });
@@ -272,7 +264,7 @@ export default function PassportFlow() {
           zkProof: activeProof.zkProof,
           nullifier: activeProof.nullifier,
           tier: eligibility.tier,
-          publicInputs,
+          publicInputs: activeProof.publicInputs,
         }),
       });
 
@@ -297,7 +289,6 @@ export default function PassportFlow() {
     eligibility,
     proofResult,
     proofSecret,
-    publicInputs,
     publicKey,
     signAllTransactions,
     witness,
