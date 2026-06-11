@@ -3,11 +3,10 @@
 import { Barretenberg, BackendType } from "@aztec/bb.js";
 import type { CompiledCircuit } from "@noir-lang/types";
 import { normalizeAcirBytecode } from "./acir";
+import { computeSrsSize, isCrsBufferError } from "./barretenberg.shared";
 
-/** Keep in sync with package.json @aztec/bb.js version. */
-const BB_JS_VERSION = "5.0.0-nightly.20260522";
-
-const MIN_SRS_SIZE = 2 ** 16;
+/** Bump when CRS sizing logic changes to invalidate IndexedDB cache. */
+const BB_JS_VERSION = "5.0.0-nightly.20260522-crs17";
 
 let barretenbergPromise: Promise<Barretenberg> | null = null;
 let srsReadyForBytecode: string | null = null;
@@ -62,14 +61,14 @@ async function initSrsForCircuit(
 ): Promise<void> {
   const bytecode = normalizeAcirBytecode(circuit.bytecode);
   const [, dyadicSize] = await bb.acirGetCircuitSizes(bytecode, false, false);
-  const srsSize = Math.max(dyadicSize, MIN_SRS_SIZE);
+  const srsSize = computeSrsSize(dyadicSize);
 
   try {
     await bb.initSRSChonk(srsSize);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    if (!message.includes("invalid points_buf size")) {
+    if (!isCrsBufferError(message)) {
       throw error;
     }
 

@@ -219,7 +219,11 @@ function formatProverError(
       );
     }
 
-    if (message.includes("invalid points_buf size")) {
+    if (
+      message.includes("invalid points_buf size") ||
+      message.includes("compressed points_buf size") ||
+      message.includes("positive multiple of")
+    ) {
       return new Error(
         "ZK prover CRS data was outdated. Hard-refresh the page (Ctrl+Shift+R) and try again.",
       );
