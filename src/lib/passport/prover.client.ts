@@ -6,6 +6,7 @@ import {
   deriveNullifier,
   hashPublicInputs,
 } from "./eligibility";
+import { normalizeCompiledCircuit } from "./circuit";
 import { createDevProofBundle, isDevModeEnabled } from "./dev";
 import type {
   PassportPublicInputs,
@@ -43,7 +44,7 @@ async function loadCircuit(): Promise<CompiledCircuit> {
     );
   }
 
-  return response.json();
+  return normalizeCompiledCircuit(await response.json());
 }
 
 export interface GenerateProofInput {
@@ -91,7 +92,7 @@ export async function generatePassportProof(
     first_tx_timestamp: input.witness.firstTxTimestamp.toString(),
     tx_count: input.witness.transactionCount.toString(),
     volume_lamports: input.witness.volumeLamports.toString(),
-    secret: input.secret,
+    secret: toNoirFieldInput(input.secret),
     current_timestamp: input.publicInputs.current_timestamp.toString(),
     min_age_seconds: input.publicInputs.min_age_seconds.toString(),
     min_tx_count: input.publicInputs.min_tx_count.toString(),
@@ -116,6 +117,14 @@ export async function generatePassportProof(
       publicInputs: proofData.publicInputs,
     },
   };
+}
+
+function toNoirFieldInput(value: string): string {
+  if (value.startsWith("0x")) {
+    return value;
+  }
+
+  return `0x${BigInt(value).toString(16)}`;
 }
 
 function uint8ArrayToBase64(bytes: Uint8Array): string {

@@ -35,8 +35,14 @@ async function main() {
 
   const fm = createFileManager(noirProjectPath);
   const compiled = await compile(fm);
+  const artifact = compiled.program ?? compiled;
+
+  if (!artifact?.bytecode) {
+    throw new Error("Compiler did not produce circuit bytecode.");
+  }
+
   fs.mkdirSync(outputDir, { recursive: true });
-  fs.writeFileSync(outputPath, JSON.stringify(compiled, null, 2));
+  fs.writeFileSync(outputPath, JSON.stringify(artifact, null, 2));
   console.log(`Circuit written to ${outputPath}`);
 }
 

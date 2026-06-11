@@ -1,11 +1,9 @@
 import { Barretenberg, UltraHonkBackend } from "@aztec/bb.js";
 import fs from "node:fs";
 import path from "node:path";
+import { normalizeCompiledCircuit } from "./circuit";
 import type { ZkProofBundle } from "./types";
-
-interface CompiledCircuit {
-  bytecode: string;
-}
+import type { CompiledCircuit } from "@noir-lang/types";
 
 let circuitCache: CompiledCircuit | null = null;
 
@@ -27,8 +25,10 @@ function loadCircuitFromDisk(): CompiledCircuit {
     );
   }
 
-  circuitCache = JSON.parse(fs.readFileSync(circuitPath, "utf8"));
-  return circuitCache!;
+  circuitCache = normalizeCompiledCircuit(
+    JSON.parse(fs.readFileSync(circuitPath, "utf8")),
+  );
+  return circuitCache;
 }
 
 export async function verifyZkProofBundle(
