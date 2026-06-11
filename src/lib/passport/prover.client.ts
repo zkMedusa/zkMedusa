@@ -69,9 +69,11 @@ async function ensureNoirInitialized(): Promise<void> {
 
 async function getBarretenberg(): Promise<Barretenberg> {
   if (!barretenbergPromise) {
+    // Must match Noir compiler version — see bb-versions.json for noir 1.0.0-beta.22
     barretenbergPromise = Barretenberg.new({
       threads: 1,
       backend: BackendType.Wasm,
+      memory: { initial: 2048, maximum: 65536 },
     });
   }
 
