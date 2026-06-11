@@ -2,6 +2,7 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import HeroPage from "@/components/HeroPage";
 import MiddleNav from "@/components/MiddleNav";
+import ContractAddressBar from "@/components/ContractAddressBar";
 import PillarPage from "@/components/PillarPage";
 import MedusaMiddle from "@/components/MedusaMiddle";
 import SlashScreenInfo from "@/components/SlashScreenInfo";
@@ -20,6 +21,7 @@ export default function Home() {
       <BlackWhiteNav />
       <ShowBodiesPage />
       <MiddleNav />
+      <ContractAddressBar />
       <Footer />
     </>
   );
