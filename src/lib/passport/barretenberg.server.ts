@@ -1,12 +1,25 @@
 import { Barretenberg, BackendType } from "@aztec/bb.js";
 import type { CompiledCircuit } from "@noir-lang/types";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { normalizeAcirBytecode } from "./acir";
 import { computeSrsSize } from "./barretenberg.shared";
 
 let barretenbergPromise: Promise<Barretenberg> | null = null;
 let srsReadyForBytecode: string | null = null;
+
+function resolveBarretenbergCrsPath(): string {
+  if (process.env.CRS_PATH) {
+    return process.env.CRS_PATH;
+  }
+
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join("/tmp", "medusa-passport", "bb-crs");
+  }
+
+  return path.join(os.homedir(), ".bb-crs");
+}
 
 function resolveBarretenbergWasmPath(): string {
   const candidates = [
@@ -56,11 +69,15 @@ export async function ensureServerBarretenberg(
   circuit: CompiledCircuit,
 ): Promise<Barretenberg> {
   if (!barretenbergPromise) {
+    const crsPath = resolveBarretenbergCrsPath();
+    fs.mkdirSync(crsPath, { recursive: true });
+
     barretenbergPromise = Barretenberg.new({
       backend: BackendType.Wasm,
       threads: 1,
       skipSrsInit: true,
       wasmPath: resolveBarretenbergWasmPath(),
+      crsPath,
     });
   }
 
