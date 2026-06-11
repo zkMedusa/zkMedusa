@@ -21,6 +21,7 @@ import {
   formatX402SetupError,
   isPassportPaymentSkipped,
 } from "@/lib/passport/x402.server";
+import { getTreasuryUsdcAccountIssue } from "@/lib/passport/usdc.server";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -111,6 +112,11 @@ function wrapIssueRouteWithPayment(
 
   return async (request: NextRequest) => {
     try {
+      const treasuryIssue = await getTreasuryUsdcAccountIssue();
+      if (treasuryIssue) {
+        return NextResponse.json({ error: treasuryIssue }, { status: 503 });
+      }
+
       return await protectedHandler(request);
     } catch (error) {
       return NextResponse.json(

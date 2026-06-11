@@ -2,11 +2,16 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   getPassportIssuePriceLabel,
+  getSolanaNetwork,
   PASSPORT_REQUIREMENTS,
 } from "@/lib/passport/config";
+import {
+  checkUsdcPaymentReadiness,
+  formatPaymentError,
+} from "@/lib/passport/usdc.client";
 import { evaluateEligibility, randomFieldSecret } from "@/lib/passport/eligibility";
 import { isDevModeEnabled } from "@/lib/passport/dev";
 import {
@@ -123,6 +128,7 @@ function LoadingState({ message }: { message: string }) {
 }
 
 export default function PassportFlow() {
+  const { connection } = useConnection();
   const { publicKey, signAllTransactions } = useWallet();
   const [phase, setPhase] = useState<FlowPhase>("connect");
   const [witness, setWitness] = useState<WalletWitness | null>(null);
@@ -239,6 +245,11 @@ export default function PassportFlow() {
     setPhase("paying");
 
     try {
+      const readiness = await checkUsdcPaymentReadiness(connection, publicKey);
+      if (!readiness.ready) {
+        throw new Error(readiness.message);
+      }
+
       let activeProof = proofResult;
       if (!activeProof) {
         setPhase("issuing");
@@ -281,12 +292,11 @@ export default function PassportFlow() {
       setPassport(payload.passport);
       setPhase("done");
     } catch (flowError) {
-      setError(
-        flowError instanceof Error ? flowError.message : "Passport flow failed.",
-      );
+      setError(formatPaymentError(flowError));
       setPhase("paying");
     }
   }, [
+    connection,
     eligibility,
     proofResult,
     proofSecret,
@@ -460,6 +470,11 @@ export default function PassportFlow() {
             description={`Pay ${issuePriceLabel} USDC via x402 to receive your signed Medusa Passport. Valid for 90 days.`}
           >
             <div className="space-y-4">
+              <p className="font-['PerfectDOS'] text-xs text-white/60 normal-case">
+                Requires at least {issuePriceLabel} USDC in your wallet on Solana{" "}
+                {getSolanaNetwork()}. Transaction fees are covered by the x402
+                facilitator.
+              </p>
               {eligibility?.tierLabel && (
                 <p className="font-['PerfectDOS'] text-sm text-white/80 normal-case">
                   Tier: <span className="text-white">{eligibility.tierLabel}</span>
