@@ -3,14 +3,12 @@ import React from "react";
 const PillarPage = () => {
   return (
     <div id="about" className="min-h-screen w-full bg-black bg-center flex items-center justify-between relative overflow-x-hidden">
-      {/* Left pillar */}
       <img
         src="/pillar.gif"
         alt="Left Pillar"
         className="h-screen object-cover w-[15%] ml-0 md:ml-10 lg:ml-20 py-4 md:py-8 lg:py-10"
       />
 
-      {/* Center content */}
       <div className="flex flex-col items-center absolute inset-x-0 top-1/2 -translate-y-1/2 z-10 px-2 md:px-8">
         <h1 className="text-white text-2xl md:text-6xl lg:text-8xl mb-2 md:mb-4 tracking-wider font-['BlueScreen'] text-center">
             &#47;&#47; MEDUSA
@@ -20,7 +18,6 @@ const PillarPage = () => {
         </p>
       </div>
 
-      {/* 3D Model/Image */}
       <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-full max-w-xl">
         <img
           src="/bust.png"
@@ -29,7 +26,6 @@ const PillarPage = () => {
         />
       </div>
 
-      {/* Right pillar */}
       <img
         src="/pillar.gif"
         alt="Right Pillar"

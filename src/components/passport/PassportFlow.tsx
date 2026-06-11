@@ -365,7 +365,6 @@ export default function PassportFlow() {
           </div>
         )}
 
-        {/* Step 1 — Connect */}
         {phase === "connect" && (
           <StepCard
             step={1}
@@ -383,7 +382,6 @@ export default function PassportFlow() {
           </StepCard>
         )}
 
-        {/* Step 2 — Scanning */}
         {phase === "scanning" && (
           <StepCard
             step={2}
@@ -394,7 +392,6 @@ export default function PassportFlow() {
           </StepCard>
         )}
 
-        {/* Step 2 — Review */}
         {phase === "review" && witness && eligibility && (
           <StepCard
             step={2}
@@ -451,7 +448,6 @@ export default function PassportFlow() {
           </StepCard>
         )}
 
-        {/* Step 3 — Proving */}
         {phase === "proving" && (
           <StepCard
             step={3}
@@ -462,7 +458,6 @@ export default function PassportFlow() {
           </StepCard>
         )}
 
-        {/* Step 4 — Pay */}
         {phase === "paying" && (
           <StepCard
             step={4}
@@ -487,7 +482,6 @@ export default function PassportFlow() {
           </StepCard>
         )}
 
-        {/* Step 4 — Issuing */}
         {phase === "issuing" && (
           <StepCard
             step={4}
@@ -498,7 +492,6 @@ export default function PassportFlow() {
           </StepCard>
         )}
 
-        {/* Step 5 — Done */}
         {phase === "done" && passport && (
           <StepCard
             step={5}

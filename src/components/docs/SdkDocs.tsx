@@ -124,9 +124,9 @@ export async function POST(request: Request) {
 }`;
 
   const tierGateCode = `const ALLOCATION_BY_TIER = {
-  1: 0.1, // BRONZE
-  2: 0.5, // SILVER
-  3: 2.0, // GOLD
+  1: 0.1,
+  2: 0.5,
+  3: 2.0,
 };
 
 const result = await client.verify(passport, {

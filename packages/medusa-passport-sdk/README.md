@@ -21,8 +21,8 @@ import {
 const passport = parsePassportJson(passportJsonFromUser);
 
 const result = verifyPassport(passport, {
-  issuerPublicKey: "749d6135f3d883950ff82f82bc2119e8b6e469ebfc4163dd10e1cc079b723565",
-  minTier: 2, // require SILVER+
+  issuerPublicKey: process.env.MEDUSA_ISSUER_PUBLIC_KEY!,
+  minTier: 2,
 });
 
 if (result.valid) {
@@ -67,7 +67,6 @@ Pull the whitelist for your campaign:
 
 ```typescript
 const entries = await client.getWhitelist("my-presale-q3");
-// [{ claimWallet, tier, tierLabel, nullifier, registeredAt }, ...]
 ```
 
 ## Partner API keys
@@ -93,7 +92,7 @@ Each key is scoped to one `campaignId`.
 ## Tier gating example
 
 ```typescript
-const PRESALE_MIN_TIER = 1; // bronze
+const PRESALE_MIN_TIER = 1;
 const ALLOCATION_BY_TIER = { 1: 0.1, 2: 0.5, 3: 2 };
 
 const result = await client.verify(passport, { minTier: PRESALE_MIN_TIER });

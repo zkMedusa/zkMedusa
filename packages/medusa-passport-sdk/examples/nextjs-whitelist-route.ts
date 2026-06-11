@@ -1,9 +1,3 @@
-/**
- * Example Next.js API route for a partner presale app.
- *
- * POST /api/whitelist
- * Body: { passport: MedusaPassport, claimWallet: string }
- */
 import {
   MedusaPassportClient,
   PASSPORT_TIERS,

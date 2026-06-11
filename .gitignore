@@ -29,6 +29,9 @@ src/lib/passport/generated/passport.circuit.json
 public/circuits/passport.json
 src/lib/passport/wasm/barretenberg-threads.wasm.gz
 
+.data
+tsconfig.tsbuildinfo
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

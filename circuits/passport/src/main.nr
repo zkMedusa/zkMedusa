@@ -1,6 +1,3 @@
-// Medusa Passport ZK circuit
-// Proves wallet age, tx count, and volume tier without revealing wallet or raw metrics.
-
 fn main(
     first_tx_timestamp: u64,
     tx_count: u64,
@@ -29,6 +26,5 @@ fn main(
         assert(false);
     }
 
-    // Bind the secret witness and expose a deterministic public commitment.
     secret * secret + (first_tx_timestamp as Field) + (tx_count as Field)
 }
