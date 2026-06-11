@@ -1,0 +1,37 @@
+{
+  "name": "@medusa/passport-sdk",
+  "version": "0.1.0",
+  "description": "Verify and register Medusa Passports in third-party apps, presales, and whitelists.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "tweetnacl": "^1.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  },
+  "keywords": [
+    "medusa",
+    "passport",
+    "solana",
+    "zk",
+    "whitelist",
+    "presale"
+  ]
+}

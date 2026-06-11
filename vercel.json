@@ -1,0 +1,3 @@
+{
+  "buildCommand": "npm run compile:circuit && npm run build:sdk && next build"
+}

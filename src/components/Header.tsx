@@ -1,18 +1,59 @@
-import React from "react";
+import Link from "next/link";
+
+const navLinks = [
+  { label: "PASSPORT", href: "/passport" },
+  { label: "SDK DOCS", href: "/docs" },
+  {
+    label: "PUMPFUN",
+    href: "https://pump.fun/J7QoLWaBuqGuD1RL89BNa7hBDYbQtEm8i91MhbN8pump",
+    external: true,
+  },
+  { label: "ABOUT", href: "/#about" },
+  { label: "TWITTER", href: "https://x.com/m3dusadao", external: true },
+  { label: "TELEGRAM", href: "https://t.me/MedusaDAOPortal", external: true },
+] as const;
+
+const linkClassName =
+  "whitespace-nowrap text-xs md:text-sm font-bold text-black [text-shadow:_-1px_1px_0_#fff,_1px_1px_0_#fff,_1px_-1px_0_#fff,_-1px_-1px_0_#fff] font-['BlueScreen'] hover:opacity-70 transition-opacity";
 
 const Header = () => {
   return (
     <div
-      className="h-12 w-full bg-cover bg-center flex items-center"
+      className="h-12 w-full bg-cover bg-center flex items-center px-4 md:px-8"
       style={{
         backgroundImage: `url('/bgnavbar.gif')`,
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
     >
-      <h1 className="pl-10 absolute text-2xl font-bold text-black z-20 [text-shadow:_-2px_2px_0_#fff,_2px_2px_0_#fff,_2px_-2px_0_#fff,_-2px_-2px_0_#fff] font-['BlueScreen']">
+      <div className="flex w-full items-center justify-between gap-4 min-w-0">
+        <Link
+          href="/"
+          className="shrink-0 text-lg md:text-2xl font-bold text-black [text-shadow:_-2px_2px_0_#fff,_2px_2px_0_#fff,_2px_-2px_0_#fff,_-2px_-2px_0_#fff] font-['BlueScreen']"
+        >
           &#47;&#47; MEDUSA
-      </h1>
+        </Link>
+
+        <nav className="flex items-center gap-3 md:gap-5 overflow-x-auto min-w-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+          {navLinks.map((item) =>
+            "external" in item && item.external ? (
+              <a
+                key={item.label}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={linkClassName}
+              >
+                &#47;&#47; {item.label}
+              </a>
+            ) : (
+              <Link key={item.label} href={item.href} className={linkClassName}>
+                &#47;&#47; {item.label}
+              </Link>
+            ),
+          )}
+        </nav>
+      </div>
     </div>
   );
 };

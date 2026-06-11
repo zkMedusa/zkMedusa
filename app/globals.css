@@ -66,3 +66,49 @@ code {
 html {
   scroll-behavior: smooth;
 }
+
+/* Solana wallet modal — match Medusa theme */
+.wallet-adapter-modal-wrapper {
+  background: rgba(0, 0, 0, 0.85) !important;
+}
+
+.wallet-adapter-modal {
+  background: #0d0d0d !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 0 !important;
+  font-family: "PerfectDOS", monospace !important;
+}
+
+.wallet-adapter-modal-title {
+  font-family: "BlueScreen", sans-serif !important;
+  color: #fff !important;
+  text-transform: uppercase;
+}
+
+.wallet-adapter-modal-list {
+  margin: 0 !important;
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 0 !important;
+  color: #fff !important;
+  font-family: "PerfectDOS", monospace !important;
+  text-transform: uppercase;
+  font-size: 0.8rem !important;
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button:hover {
+  background: #fff !important;
+  color: #000 !important;
+}
+
+.wallet-adapter-modal-button-close {
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+.wallet-adapter-modal-button-close svg {
+  fill: #fff !important;
+}

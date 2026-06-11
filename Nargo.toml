@@ -1,0 +1,7 @@
+[package]
+name = "medusa_passport"
+type = "bin"
+authors = ["Medusa DAO"]
+compiler_version = ">=1.0.0"
+
+[dependencies]
