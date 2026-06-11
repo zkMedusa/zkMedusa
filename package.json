@@ -8,8 +8,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "npm run build:sdk && next build",
-    "build:sdk": "npm run build --workspace=@medusa/passport-sdk",
-    "publish:sdk": "npm publish --workspace=@medusa/passport-sdk --access public",
+    "build:sdk": "npm run build --workspace=@zkmedusa/passport-sdk",
+    "publish:sdk": "npm publish --workspace=@zkmedusa/passport-sdk --access public",
     "start": "next start",
     "lint": "next lint",
     "copy:noir-wasm": "node scripts/copy-noir-wasm.mjs",

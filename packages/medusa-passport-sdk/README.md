@@ -1,4 +1,4 @@
-# @medusa/passport-sdk
+# @zkmedusa/passport-sdk
 
 Use Medusa Passports in your app, presale, or whitelist without rebuilding verification logic.
 
@@ -7,7 +7,7 @@ Use Medusa Passports in your app, presale, or whitelist without rebuilding verif
 ## Install
 
 ```bash
-npm install @medusa/passport-sdk
+npm install @zkmedusa/passport-sdk
 ```
 
 ## Quick start — verify locally
@@ -16,7 +16,7 @@ npm install @medusa/passport-sdk
 import {
   parsePassportJson,
   verifyPassport,
-} from "@medusa/passport-sdk";
+} from "@zkmedusa/passport-sdk";
 
 const passport = parsePassportJson(passportJsonFromUser);
 
@@ -35,7 +35,7 @@ if (result.valid) {
 Fetch the issuer public key dynamically:
 
 ```typescript
-import { MedusaPassportClient } from "@medusa/passport-sdk";
+import { MedusaPassportClient } from "@zkmedusa/passport-sdk";
 
 const client = new MedusaPassportClient({
   baseUrl: "https://your-medusa-app.com",

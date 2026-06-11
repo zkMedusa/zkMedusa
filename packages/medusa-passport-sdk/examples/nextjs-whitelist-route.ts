@@ -8,7 +8,7 @@ import {
   MedusaPassportClient,
   PASSPORT_TIERS,
   type MedusaPassport,
-} from "@medusa/passport-sdk";
+} from "@zkmedusa/passport-sdk";
 
 const client = new MedusaPassportClient({
   baseUrl: process.env.MEDUSA_PASSPORT_BASE_URL!,

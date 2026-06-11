@@ -29,13 +29,13 @@ function Section({
 }
 
 export default function SdkDocs({ baseUrl, issuerPublicKey }: SdkDocsProps) {
-  const installCode = `npm install @medusa/passport-sdk`;
+  const installCode = `npm install @zkmedusa/passport-sdk`;
 
   const verifyLocalCode = `import {
   parsePassportJson,
   verifyPassport,
   PASSPORT_TIERS,
-} from "@medusa/passport-sdk";
+} from "@zkmedusa/passport-sdk";
 
 const passport = parsePassportJson(passportJsonFromUser);
 
@@ -50,7 +50,7 @@ if (result.valid) {
   console.log(result.errors);
 }`;
 
-  const clientVerifyCode = `import { MedusaPassportClient } from "@medusa/passport-sdk";
+  const clientVerifyCode = `import { MedusaPassportClient } from "@zkmedusa/passport-sdk";
 
 const client = new MedusaPassportClient({
   baseUrl: "${baseUrl}",
@@ -62,7 +62,7 @@ if (!result.valid) {
   throw new Error(result.errors.join(", "));
 }`;
 
-  const registerCode = `import { MedusaPassportClient } from "@medusa/passport-sdk";
+  const registerCode = `import { MedusaPassportClient } from "@zkmedusa/passport-sdk";
 
 const client = new MedusaPassportClient({
   baseUrl: "${baseUrl}",
@@ -87,7 +87,7 @@ for (const entry of entries) {
   MedusaPassportClient,
   PASSPORT_TIERS,
   type MedusaPassport,
-} from "@medusa/passport-sdk";
+} from "@zkmedusa/passport-sdk";
 
 const client = new MedusaPassportClient({
   baseUrl: process.env.MEDUSA_PASSPORT_BASE_URL!,
@@ -189,7 +189,7 @@ MEDUSA_PARTNER_API_KEYS=my-presale-q3:sk_live_partner_key,dao-whitelist:sk_live_
           <main className="space-y-12">
             <header className="space-y-4 border-b border-white/20 pb-8">
               <p className="font-['BlueScreen'] text-3xl md:text-5xl">
-                @medusa/passport-sdk
+                @zkmedusa/passport-sdk
               </p>
               <p className="font-['PerfectDOS'] text-sm md:text-base uppercase text-white/80 leading-relaxed max-w-3xl">
                 Integrate Medusa Passports into your app, presale, or whitelist.
