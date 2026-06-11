@@ -13,20 +13,22 @@ fn main(
     silver_threshold: pub u64,
     gold_threshold: pub u64,
     tier: pub u8,
-    nullifier: pub Field,
-) {
+) -> pub Field {
     assert(current_timestamp >= first_tx_timestamp + min_age_seconds);
     assert(tx_count >= min_tx_count);
 
-    if volume_lamports >= gold_threshold {
-        tier = 3;
-    } else if volume_lamports >= silver_threshold {
-        tier = 2;
-    } else if volume_lamports >= bronze_threshold {
-        tier = 1;
+    if tier == 3u8 {
+        assert(volume_lamports >= gold_threshold);
+    } else if tier == 2u8 {
+        assert(volume_lamports >= silver_threshold);
+        assert(volume_lamports < gold_threshold);
+    } else if tier == 1u8 {
+        assert(volume_lamports >= bronze_threshold);
+        assert(volume_lamports < silver_threshold);
     } else {
         assert(false);
     }
 
-    nullifier = secret * secret + (first_tx_timestamp as Field) + (tx_count as Field);
+    // Bind the secret witness and expose a deterministic public commitment.
+    secret * secret + (first_tx_timestamp as Field) + (tx_count as Field)
 }

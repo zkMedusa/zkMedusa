@@ -99,7 +99,6 @@ export async function generatePassportProof(
     silver_threshold: input.publicInputs.silver_threshold.toString(),
     gold_threshold: input.publicInputs.gold_threshold.toString(),
     tier: input.tier.toString(),
-    nullifier: "0",
   });
 
   const proofData = await backend.generateProof(witness);
