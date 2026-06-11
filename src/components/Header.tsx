@@ -9,7 +9,7 @@ const navLinks = [
     external: true,
   },
   { label: "ABOUT", href: "/#about" },
-  { label: "TWITTER", href: "https://x.com/", external: true },
+  { label: "TWITTER", href: "https://x.com/ZkMedusa", external: true },
 ] as const;
 
 const linkClassName =

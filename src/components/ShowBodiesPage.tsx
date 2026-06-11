@@ -17,7 +17,7 @@ const ShowBodiesPage = () => {
           </div>
         </div>
         <div className="flex flex-col md:flex-col justify-center md:justify-start items-center md:items-start px-4 md:pl-10 mt-4">
-          <a href="https://x.com/" target="_blank" rel="noopener noreferrer">
+          <a href="https://x.com/ZkMedusa" target="_blank" rel="noopener noreferrer">
             <img
               src="/twitter.png"
               alt="Twitter"
