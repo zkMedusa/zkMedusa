@@ -355,4 +355,4 @@ Works in **Node.js**, **Next.js API routes**, and the **browser** (local verify 
 
 ## License
 
-MIT — see `packages/medusa-passport-sdk/package.json`. Add a root `LICENSE` file before publishing the repository.
+[MIT](LICENSE)
