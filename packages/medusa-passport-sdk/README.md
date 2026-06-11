@@ -2,6 +2,8 @@
 
 Use Medusa Passports in your app, presale, or whitelist without rebuilding verification logic.
 
+**Full documentation:** [zkmedusa.com/docs](https://www.zkmedusa.com/docs)
+
 ## Install
 
 ```bash
