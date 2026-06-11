@@ -1,12 +1,21 @@
 import { UltraHonkBackend } from "@aztec/bb.js";
 import fs from "node:fs";
 import path from "node:path";
+import { hexToBytes } from "./eligibility";
 import { ensureServerBarretenberg } from "./barretenberg.server";
 import { normalizeCompiledCircuit } from "./circuit";
 import type { ZkProofBundle } from "./types";
 import type { CompiledCircuit } from "@noir-lang/types";
 
+const DEFAULT_VERIFY_SETTINGS = {
+  ipaAccumulation: false,
+  oracleHashType: "poseidon2",
+  disableZk: false,
+  optimizedSolidityVerifier: false,
+} as const;
+
 let circuitCache: CompiledCircuit | null = null;
+let cachedVerificationKey: Uint8Array | null = null;
 
 function loadCircuitFromDisk(): CompiledCircuit {
   if (circuitCache) {
@@ -32,6 +41,19 @@ function loadCircuitFromDisk(): CompiledCircuit {
   return circuitCache;
 }
 
+async function getVerificationKey(
+  circuit: CompiledCircuit,
+): Promise<Uint8Array> {
+  if (cachedVerificationKey) {
+    return cachedVerificationKey;
+  }
+
+  const bb = await ensureServerBarretenberg(circuit);
+  const backend = new UltraHonkBackend(circuit.bytecode, bb);
+  cachedVerificationKey = await backend.getVerificationKey();
+  return cachedVerificationKey;
+}
+
 export async function verifyZkProofBundle(
   zkProof: ZkProofBundle,
 ): Promise<boolean> {
@@ -41,13 +63,22 @@ export async function verifyZkProofBundle(
 
   const circuit = loadCircuitFromDisk();
   const bb = await ensureServerBarretenberg(circuit);
-  const backend = new UltraHonkBackend(circuit.bytecode, bb);
+  const verificationKey = await getVerificationKey(circuit);
   const proofBytes = Buffer.from(zkProof.proof, "base64");
+  const proofFrs: Uint8Array[] = [];
 
-  return backend.verifyProof({
-    proof: new Uint8Array(proofBytes),
-    publicInputs: zkProof.publicInputs,
+  for (let index = 0; index < proofBytes.length; index += 32) {
+    proofFrs.push(proofBytes.subarray(index, index + 32));
+  }
+
+  const { verified } = await bb.circuitVerify({
+    verificationKey,
+    publicInputs: zkProof.publicInputs.map((input) => hexToBytes(input)),
+    proof: proofFrs,
+    settings: DEFAULT_VERIFY_SETTINGS,
   });
+
+  return verified;
 }
 
 export async function verifyDevProofBundle(

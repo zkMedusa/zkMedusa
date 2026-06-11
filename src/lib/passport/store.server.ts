@@ -1,7 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+function getDataDir(): string {
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join("/tmp", "medusa-passport");
+  }
+
+  return path.join(process.cwd(), ".data");
+}
+
+const DATA_DIR = getDataDir();
 const NULLIFIER_FILE = path.join(DATA_DIR, "passport-nullifiers.json");
 
 function ensureStore(): Set<string> {

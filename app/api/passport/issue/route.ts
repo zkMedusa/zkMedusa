@@ -12,6 +12,7 @@ import {
   registerNullifier,
 } from "@/lib/passport/store.server";
 import type { IssuePassportRequest, MedusaPassport } from "@/lib/passport/types";
+import { parseIssuePassportRequest } from "@/lib/passport/request.server";
 import { verifySubmittedProof } from "@/lib/passport/verify.server";
 import {
   getPassportIssueRouteConfig,
@@ -20,9 +21,12 @@ import {
   isPassportPaymentSkipped,
 } from "@/lib/passport/x402.server";
 
+export const maxDuration = 300;
+export const dynamic = "force-dynamic";
+
 async function issuePassport(request: NextRequest) {
   try {
-    const body = (await request.json()) as IssuePassportRequest;
+    const body = await parseIssuePassportRequest(request);
 
     if (hasNullifierBeenUsed(body.nullifier)) {
       return NextResponse.json(

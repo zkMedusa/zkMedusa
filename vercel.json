@@ -4,5 +4,10 @@
       "NODE_OPTIONS": "--max-old-space-size=6144"
     }
   },
-  "buildCommand": "npm run copy:noir-wasm && npm run compile:circuit && npm run build:sdk && next build"
+  "buildCommand": "npm run copy:noir-wasm && npm run compile:circuit && npm run build:sdk && next build",
+  "functions": {
+    "app/api/passport/issue/route.ts": {
+      "maxDuration": 300
+    }
+  }
 }

@@ -15,6 +15,7 @@ import {
   type GenerateProofResult,
   type ProofProgressStep,
 } from "@/lib/passport/prover.client";
+import { readJsonResponse } from "@/lib/passport/http.client";
 import { createPassportFetchWithPayment } from "@/lib/passport/x402.client";
 import {
   fetchWalletWitness,
@@ -268,10 +269,10 @@ export default function PassportFlow() {
         }),
       });
 
-      const payload = (await response.json()) as {
+      const payload = await readJsonResponse<{
         passport?: MedusaPassport;
         error?: string;
-      };
+      }>(response);
 
       if (!response.ok || !payload.passport) {
         throw new Error(payload.error ?? "Passport issuance failed.");
