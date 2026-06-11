@@ -12,7 +12,8 @@
     "start": "next start",
     "lint": "next lint",
     "copy:noir-wasm": "node scripts/copy-noir-wasm.mjs",
-    "postinstall": "node scripts/copy-noir-wasm.mjs",
+    "copy:bb-wasm": "node scripts/copy-bb-wasm.mjs",
+    "postinstall": "node scripts/copy-noir-wasm.mjs && node scripts/copy-bb-wasm.mjs",
     "compile:circuit": "node scripts/compile-circuit.mjs",
     "passport:keys": "node scripts/generate-issuer-keys.mjs"
   },
