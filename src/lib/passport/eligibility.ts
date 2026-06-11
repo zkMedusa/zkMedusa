@@ -73,9 +73,21 @@ export function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
+/** BN254 scalar field modulus used by Noir / Barretenberg circuits. */
+export const BN254_FIELD_MODULUS =
+  21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+
 export function randomFieldSecret(): string {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return BigInt(`0x${bytesToHex(bytes)}`).toString();
+  while (true) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    const candidate = BigInt(`0x${bytesToHex(bytes)}`);
+
+    if (candidate === 0n || candidate >= BN254_FIELD_MODULUS) {
+      continue;
+    }
+
+    return candidate.toString();
+  }
 }
 
 export function hashString(value: string): string {
