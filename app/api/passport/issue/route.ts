@@ -37,12 +37,11 @@ async function issuePassport(request: NextRequest) {
       );
     }
 
-    const proofValid = await verifySubmittedProof(body.zkProof, body.tier);
-    if (!proofValid) {
+    const proofResult = await verifySubmittedProof(body.zkProof, body.tier);
+    if (!proofResult.valid) {
       return NextResponse.json(
         {
-          error:
-            "ZK proof verification failed. Compile the circuit or enable PASSPORT_DEV_SKIP_ZK for local testing.",
+          error: proofResult.error,
         },
         { status: 400 },
       );

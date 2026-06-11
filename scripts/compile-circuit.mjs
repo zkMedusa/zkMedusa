@@ -8,6 +8,14 @@ const projectRoot = path.join(__dirname, "..");
 const circuitDir = path.resolve(projectRoot, "circuits", "passport");
 const outputDir = path.join(projectRoot, "public", "circuits");
 const outputPath = path.join(outputDir, "passport.json");
+const serverCopyDir = path.join(
+  projectRoot,
+  "src",
+  "lib",
+  "passport",
+  "generated",
+);
+const serverCopyPath = path.join(serverCopyDir, "passport.circuit.json");
 
 function toNoirProjectPath(dir) {
   const resolved = path.resolve(dir);
@@ -43,7 +51,10 @@ async function main() {
 
   fs.mkdirSync(outputDir, { recursive: true });
   fs.writeFileSync(outputPath, JSON.stringify(artifact, null, 2));
+  fs.mkdirSync(serverCopyDir, { recursive: true });
+  fs.writeFileSync(serverCopyPath, JSON.stringify(artifact, null, 2));
   console.log(`Circuit written to ${outputPath}`);
+  console.log(`Server copy written to ${serverCopyPath}`);
 }
 
 main().catch((error) => {

@@ -24,6 +24,10 @@
 
 .data
 
+# Generated ZK circuit artifact (produced by npm run compile:circuit on Vercel/Linux)
+src/lib/passport/generated/passport.circuit.json
+public/circuits/passport.json
+
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

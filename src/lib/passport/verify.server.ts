@@ -1,57 +1,98 @@
 import { UltraHonkBackend } from "@aztec/bb.js";
 import fs from "node:fs";
 import path from "node:path";
-import { hexToBytes } from "./eligibility";
 import { ensureServerBarretenberg } from "./barretenberg.server";
 import { normalizeCompiledCircuit } from "./circuit";
 import type { ZkProofBundle } from "./types";
 import type { CompiledCircuit } from "@noir-lang/types";
 
-const DEFAULT_VERIFY_SETTINGS = {
-  ipaAccumulation: false,
-  oracleHashType: "poseidon2",
-  disableZk: false,
-  optimizedSolidityVerifier: false,
-} as const;
-
 let circuitCache: CompiledCircuit | null = null;
-let cachedVerificationKey: Uint8Array | null = null;
 
-function loadCircuitFromDisk(): CompiledCircuit {
+const CIRCUIT_DISK_PATHS = [
+  path.join(process.cwd(), "public", "circuits", "passport.json"),
+  path.join(
+    process.cwd(),
+    "src",
+    "lib",
+    "passport",
+    "generated",
+    "passport.circuit.json",
+  ),
+];
+
+function getAppBaseUrl(): string | null {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  if (configured) {
+    return configured;
+  }
+
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
+  return null;
+}
+
+async function fetchCircuitFromAppUrl(): Promise<CompiledCircuit | null> {
+  const baseUrl = getAppBaseUrl();
+  if (!baseUrl) {
+    return null;
+  }
+
+  const response = await fetch(`${baseUrl}/circuits/passport.json`, {
+    cache: "force-cache",
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  return normalizeCompiledCircuit(await response.json());
+}
+
+async function loadCircuit(): Promise<CompiledCircuit> {
   if (circuitCache) {
     return circuitCache;
   }
 
-  const circuitPath = path.join(
-    process.cwd(),
-    "public",
-    "circuits",
-    "passport.json",
-  );
+  for (const circuitPath of CIRCUIT_DISK_PATHS) {
+    if (!fs.existsSync(circuitPath)) {
+      continue;
+    }
 
-  if (!fs.existsSync(circuitPath)) {
-    throw new Error(
-      "Passport circuit is missing. Run `npm run compile:circuit` first.",
+    circuitCache = normalizeCompiledCircuit(
+      JSON.parse(fs.readFileSync(circuitPath, "utf8")),
     );
+    return circuitCache;
   }
 
-  circuitCache = normalizeCompiledCircuit(
-    JSON.parse(fs.readFileSync(circuitPath, "utf8")),
+  const remoteCircuit = await fetchCircuitFromAppUrl();
+  if (remoteCircuit) {
+    circuitCache = remoteCircuit;
+    return circuitCache;
+  }
+
+  throw new Error(
+    "Passport circuit is missing on the server. Ensure Vercel runs `npm run compile:circuit` during build.",
   );
-  return circuitCache;
 }
 
-async function getVerificationKey(
-  circuit: CompiledCircuit,
-): Promise<Uint8Array> {
-  if (cachedVerificationKey) {
-    return cachedVerificationKey;
+export type VerifyProofResult =
+  | { valid: true }
+  | { valid: false; error: string };
+
+function formatVerifyError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("Passport circuit is missing")) {
+    return message;
   }
 
-  const bb = await ensureServerBarretenberg(circuit);
-  const backend = new UltraHonkBackend(circuit.bytecode, bb);
-  cachedVerificationKey = await backend.getVerificationKey();
-  return cachedVerificationKey;
+  if (message.includes("Invalid compiled circuit format")) {
+    return `${message} Redeploy the app so the circuit is compiled on Vercel.`;
+  }
+
+  return `ZK verification error: ${message}`;
 }
 
 export async function verifyZkProofBundle(
@@ -61,24 +102,15 @@ export async function verifyZkProofBundle(
     return false;
   }
 
-  const circuit = loadCircuitFromDisk();
+  const circuit = await loadCircuit();
   const bb = await ensureServerBarretenberg(circuit);
-  const verificationKey = await getVerificationKey(circuit);
+  const backend = new UltraHonkBackend(circuit.bytecode, bb);
   const proofBytes = Buffer.from(zkProof.proof, "base64");
-  const proofFrs: Uint8Array[] = [];
 
-  for (let index = 0; index < proofBytes.length; index += 32) {
-    proofFrs.push(proofBytes.subarray(index, index + 32));
-  }
-
-  const { verified } = await bb.circuitVerify({
-    verificationKey,
-    publicInputs: zkProof.publicInputs.map((input) => hexToBytes(input)),
-    proof: proofFrs,
-    settings: DEFAULT_VERIFY_SETTINGS,
+  return backend.verifyProof({
+    proof: new Uint8Array(proofBytes),
+    publicInputs: zkProof.publicInputs,
   });
-
-  return verified;
 }
 
 export async function verifyDevProofBundle(
@@ -107,18 +139,35 @@ export async function verifyDevProofBundle(
 export async function verifySubmittedProof(
   zkProof: ZkProofBundle,
   expectedTier: number,
-): Promise<boolean> {
+): Promise<VerifyProofResult> {
   if (zkProof.proofType === "dev_local") {
-    return verifyDevProofBundle(zkProof, expectedTier);
+    const valid = await verifyDevProofBundle(zkProof, expectedTier);
+    return valid
+      ? { valid: true }
+      : {
+          valid: false,
+          error:
+            "Dev proof rejected. Set PASSPORT_DEV_SKIP_ZK=true on the server for local testing.",
+        };
   }
 
   if (zkProof.proofType === "noir_ultrahonk") {
     try {
-      return await verifyZkProofBundle(zkProof);
-    } catch {
-      return false;
+      const valid = await verifyZkProofBundle(zkProof);
+      return valid
+        ? { valid: true }
+        : {
+            valid: false,
+            error:
+              "The ZK proof did not verify. Rescan your wallet, regenerate the proof, and mint again.",
+          };
+    } catch (error) {
+      return { valid: false, error: formatVerifyError(error) };
     }
   }
 
-  return false;
+  return {
+    valid: false,
+    error: `Unsupported proof type "${zkProof.proofType}".`,
+  };
 }
