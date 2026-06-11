@@ -85,12 +85,55 @@ export function getX402SolanaNetworkCaip2(): `solana:${string}` {
     : "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1";
 }
 
-export function getX402FacilitatorUrl(): string {
-  if (process.env.X402_FACILITATOR_URL) {
-    return process.env.X402_FACILITATOR_URL;
+const DEVNET_X402_FACILITATOR_URL = "https://x402.org/facilitator";
+const CDP_X402_FACILITATOR_URL =
+  "https://api.cdp.coinbase.com/platform/v2/x402";
+
+export function isCdpFacilitatorUrl(url: string): boolean {
+  return url.includes("cdp.coinbase.com");
+}
+
+export function getCdpApiCredentials(): { id: string; secret: string } | null {
+  const id = process.env.CDP_API_KEY_ID ?? process.env.X402_CDP_API_KEY_ID;
+  const secret =
+    process.env.CDP_API_KEY_SECRET ?? process.env.X402_CDP_API_KEY_SECRET;
+
+  if (id && secret) {
+    return { id, secret };
   }
 
-  return getSolanaNetwork() === "mainnet-beta"
-    ? "https://api.cdp.coinbase.com/platform/v2/x402"
-    : "https://x402.org/facilitator";
+  return null;
+}
+
+export function getX402FacilitatorUrl(): string {
+  const configured = process.env.X402_FACILITATOR_URL?.trim();
+  const network = getSolanaNetwork();
+
+  if (configured) {
+    if (isCdpFacilitatorUrl(configured) && !getCdpApiCredentials()) {
+      if (network !== "mainnet-beta") {
+        return DEVNET_X402_FACILITATOR_URL;
+      }
+    }
+
+    return configured;
+  }
+
+  return network === "mainnet-beta"
+    ? CDP_X402_FACILITATOR_URL
+    : DEVNET_X402_FACILITATOR_URL;
+}
+
+export function assertX402FacilitatorConfigured(): void {
+  if (process.env.PASSPORT_DEV_SKIP_PAYMENT === "true") {
+    return;
+  }
+
+  const url = getX402FacilitatorUrl();
+
+  if (isCdpFacilitatorUrl(url) && !getCdpApiCredentials()) {
+    throw new Error(
+      "Coinbase CDP facilitator requires CDP_API_KEY_ID and CDP_API_KEY_SECRET. For devnet, set NEXT_PUBLIC_SOLANA_NETWORK=devnet and use https://x402.org/facilitator (or leave X402_FACILITATOR_URL unset).",
+    );
+  }
 }

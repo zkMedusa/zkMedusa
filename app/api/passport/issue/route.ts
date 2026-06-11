@@ -18,6 +18,7 @@ import {
   getPassportIssueRouteConfig,
   getX402PaywallConfig,
   getX402ResourceServer,
+  formatX402SetupError,
   isPassportPaymentSkipped,
 } from "@/lib/passport/x402.server";
 
@@ -94,11 +95,30 @@ export async function GET() {
   });
 }
 
-export const POST = isPassportPaymentSkipped()
-  ? issuePassport
-  : withX402(
-      issuePassport as (request: NextRequest) => Promise<NextResponse>,
-      getPassportIssueRouteConfig(),
-      getX402ResourceServer(),
-      getX402PaywallConfig(),
-    );
+function wrapIssueRouteWithPayment(
+  handler: (request: NextRequest) => Promise<NextResponse>,
+) {
+  if (isPassportPaymentSkipped()) {
+    return handler;
+  }
+
+  const protectedHandler = withX402(
+    handler,
+    getPassportIssueRouteConfig(),
+    getX402ResourceServer(),
+    getX402PaywallConfig(),
+  );
+
+  return async (request: NextRequest) => {
+    try {
+      return await protectedHandler(request);
+    } catch (error) {
+      return NextResponse.json(
+        { error: formatX402SetupError(error) },
+        { status: 502 },
+      );
+    }
+  };
+}
+
+export const POST = wrapIssueRouteWithPayment(issuePassport);
