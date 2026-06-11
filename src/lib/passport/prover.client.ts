@@ -210,6 +210,15 @@ function formatProverError(
       );
     }
 
+    if (
+      message.includes("deserialize_msgpack") ||
+      message.includes("FORMAT_MSGPACK")
+    ) {
+      return new Error(
+        "ZK circuit bytecode format mismatch. Redeploy the latest build and hard-refresh the page.",
+      );
+    }
+
     if (message.includes("invalid points_buf size")) {
       return new Error(
         "ZK prover CRS data was outdated. Hard-refresh the page (Ctrl+Shift+R) and try again.",

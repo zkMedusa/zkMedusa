@@ -1,5 +1,6 @@
 import { Barretenberg } from "@aztec/bb.js";
 import type { CompiledCircuit } from "@noir-lang/types";
+import { normalizeAcirBytecode } from "./acir";
 
 const MIN_SRS_SIZE = 2 ** 16;
 
@@ -22,7 +23,7 @@ export async function ensureServerBarretenberg(
     return bb;
   }
 
-  const bytecode = Buffer.from(circuit.bytecode, "base64");
+  const bytecode = normalizeAcirBytecode(circuit.bytecode);
   const [, dyadicSize] = await bb.acirGetCircuitSizes(bytecode, false, false);
   await bb.initSRSChonk(Math.max(dyadicSize, MIN_SRS_SIZE));
   srsReadyForBytecode = circuit.bytecode;

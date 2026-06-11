@@ -2,6 +2,7 @@
 
 import { Barretenberg, BackendType } from "@aztec/bb.js";
 import type { CompiledCircuit } from "@noir-lang/types";
+import { normalizeAcirBytecode } from "./acir";
 
 /** Keep in sync with package.json @aztec/bb.js version. */
 const BB_JS_VERSION = "5.0.0-nightly.20260522";
@@ -44,17 +45,6 @@ async function clearBarretenbergCrsData(): Promise<void> {
   ]);
 }
 
-function decodeAcirBytecode(bytecode: string): Uint8Array {
-  const binary = atob(bytecode);
-  const bytes = new Uint8Array(binary.length);
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  return bytes;
-}
-
 async function createBarretenbergInstance(): Promise<Barretenberg> {
   await clearStaleBarretenbergCrsCache();
 
@@ -70,7 +60,7 @@ async function initSrsForCircuit(
   bb: Barretenberg,
   circuit: CompiledCircuit,
 ): Promise<void> {
-  const bytecode = decodeAcirBytecode(circuit.bytecode);
+  const bytecode = normalizeAcirBytecode(circuit.bytecode);
   const [, dyadicSize] = await bb.acirGetCircuitSizes(bytecode, false, false);
   const srsSize = Math.max(dyadicSize, MIN_SRS_SIZE);
 
