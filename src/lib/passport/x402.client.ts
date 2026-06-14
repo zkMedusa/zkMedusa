@@ -10,6 +10,21 @@ import { createWalletAdapterSigner } from "./walletAdapterSigner.client";
 
 type SignAllTransactions = SignerWalletAdapterProps["signAllTransactions"];
 
+export interface PassportIssueConfig {
+  skipPayment: boolean;
+}
+
+export async function fetchPassportIssueConfig(): Promise<PassportIssueConfig> {
+  const response = await fetch("/api/passport/issue", { cache: "no-store" });
+
+  if (!response.ok) {
+    return { skipPayment: false };
+  }
+
+  const payload = (await response.json()) as PassportIssueConfig;
+  return { skipPayment: payload.skipPayment === true };
+}
+
 export function createPassportFetchWithPayment(
   walletAddress: string,
   signAllTransactions: SignAllTransactions,

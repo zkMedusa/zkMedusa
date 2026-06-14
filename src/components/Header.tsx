@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const navLinks = [
   { label: "PASSPORT", href: "/passport" },
+  { label: "WALLET", href: "/wallet" },
   { label: "SDK DOCS", href: "/docs" },
   { label: "ABOUT", href: "/#about" },
   { label: "TWITTER", href: "https://x.com/ZkMedusa", external: true },
@@ -15,7 +16,7 @@ const linkClassName =
 const Header = () => {
   return (
     <div
-      className="h-12 w-full bg-cover bg-center flex items-center px-4 md:px-8"
+      className="sticky top-0 z-50 h-12 w-full bg-cover bg-center flex items-center px-4 md:px-8"
       style={{
         backgroundImage: `url('/bgnavbar.gif')`,
         backgroundSize: "cover",

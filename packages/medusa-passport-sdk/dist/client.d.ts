@@ -1,4 +1,4 @@
-import type { IssuerInfo, MedusaPassport, PassportPolicy, RegisterPassportInput, RegisterPassportResult, VerifyPassportOptions, VerifyPassportResult, WhitelistEntry } from "./types.js";
+import type { IssuerInfo, MedusaPassport, PassportPolicy, RegisterPassportInput, RegisterPassportResult, ClaimRegisterInput, ClaimRegisterResult, ClaimRotateInput, ClaimRotateResult, VerifyPassportOptions, VerifyPassportResult, WhitelistEntry } from "./types.js";
 export interface MedusaPassportClientOptions {
     baseUrl: string;
     apiKey?: string;
@@ -18,6 +18,8 @@ export declare class MedusaPassportClient {
     verifyLocal(passport: MedusaPassport, options: VerifyPassportOptions): VerifyPassportResult;
     parseAndVerify(passportJson: string, options?: Omit<VerifyPassportOptions, "issuerPublicKey">): Promise<VerifyPassportResult>;
     register(input: RegisterPassportInput): Promise<RegisterPassportResult>;
+    registerClaimWallet(input: ClaimRegisterInput): Promise<ClaimRegisterResult>;
+    rotateClaimWallet(input: ClaimRotateInput): Promise<ClaimRotateResult>;
     getWhitelist(campaignId: string): Promise<WhitelistEntry[]>;
     hasValidSignature(passport: MedusaPassport, issuerPublicKey?: string): boolean;
 }

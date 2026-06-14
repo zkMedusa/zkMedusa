@@ -92,6 +92,7 @@ async function issuePassport(request: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     publicInputs: getPublicInputs(Math.floor(Date.now() / 1000)),
+    skipPayment: isPassportPaymentSkipped(),
   });
 }
 

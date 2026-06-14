@@ -93,6 +93,30 @@ export class MedusaPassportClient {
         }
         return payload;
     }
+    async registerClaimWallet(input) {
+        const response = await this.fetchImpl(`${this.baseUrl}/api/passport/claim/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(input),
+        });
+        const payload = (await response.json());
+        if (!response.ok || !payload.registered) {
+            throw new MedusaPassportError(payload.error ?? "Claim wallet registration failed.", "REGISTRATION_FAILED");
+        }
+        return payload;
+    }
+    async rotateClaimWallet(input) {
+        const response = await this.fetchImpl(`${this.baseUrl}/api/passport/claim/rotate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(input),
+        });
+        const payload = (await response.json());
+        if (!response.ok || !payload.rotated) {
+            throw new MedusaPassportError(payload.error ?? "Claim wallet rotation failed.", "REGISTRATION_FAILED");
+        }
+        return payload;
+    }
     async getWhitelist(campaignId) {
         if (!this.apiKey) {
             throw new MedusaPassportError("apiKey is required to fetch whitelist entries.", "API_ERROR");

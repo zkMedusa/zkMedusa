@@ -66,6 +66,35 @@ export interface RegisterPassportResult {
     nullifier: string;
     registeredAt: string;
 }
+export interface ClaimRegisterInput {
+    passport: MedusaPassport;
+    claimWallet: string;
+    campaignId?: string;
+}
+export interface ClaimRegisterResult {
+    registered: boolean;
+    campaignId: string;
+    claimWallet: string;
+    tier: PassportTier;
+    tierLabel: string;
+    nullifier: string;
+    registeredAt: string;
+}
+export interface ClaimRotateInput {
+    passport: MedusaPassport;
+    claimWallet: string;
+    campaignId?: string;
+}
+export interface ClaimRotateResult {
+    rotated: boolean;
+    previousClaimWallet: string;
+    campaignId: string;
+    claimWallet: string;
+    tier: PassportTier;
+    tierLabel: string;
+    nullifier: string;
+    registeredAt: string;
+}
 export interface WhitelistEntry {
     campaignId: string;
     claimWallet: string;

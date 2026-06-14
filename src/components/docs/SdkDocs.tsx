@@ -151,11 +151,54 @@ MEDUSA_PARTNER_API_KEYS=my-presale-q3:sk_live_partner_key,dao-whitelist:sk_live_
     "campaignId": "my-presale-q3"
   }'`;
 
+  const claimWalletUserCode = `# User flow at ${baseUrl}/wallet
+# 1. Mint passport at /passport
+# 2. Generate a fresh claim wallet (keypair stays in the browser)
+# 3. Export backup JSON — store offline
+# 4. Register claim wallet for your partner's campaignId
+# 5. Use the claim wallet address for presale / allowlist — not your proving wallet`;
+
+  const claimWalletRegisterCode = `import { MedusaPassportClient } from "@zkmedusa/passport-sdk";
+
+const client = new MedusaPassportClient({
+  baseUrl: "${baseUrl}",
+});
+
+await client.registerClaimWallet({
+  passport,
+  claimWallet: "FreshClaimWalletPublicKey...",
+  campaignId: "my-presale-q3",
+});`;
+
+  const claimWalletRotateCode = `await client.rotateClaimWallet({
+  passport,
+  claimWallet: "NewClaimWalletPublicKey...",
+  campaignId: "my-presale-q3",
+});`;
+
+  const claimWalletBackupCode = `{
+  "type": "medusa_claim_wallet_v1",
+  "publicKey": "...",
+  "secretKeyBase58": "...",
+  "passportNullifier": "...",
+  "label": "Claim 1",
+  "createdAt": "2026-01-01T00:00:00.000Z"
+}`;
+
+  const curlClaimRegisterCode = `curl -X POST ${baseUrl}/api/passport/claim/register \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "passport": { ... },
+    "claimWallet": "FreshClaimWalletPublicKey...",
+    "campaignId": "my-presale-q3"
+  }'`;
+
   const nav = [
     { id: "overview", label: "Overview" },
     { id: "install", label: "Install" },
     { id: "verify", label: "Verify" },
     { id: "register", label: "Register" },
+    { id: "claim-wallet", label: "Claim wallet" },
     { id: "whitelist", label: "Whitelist" },
     { id: "tiers", label: "Tiers" },
     { id: "api", label: "API" },
@@ -192,6 +235,9 @@ MEDUSA_PARTNER_API_KEYS=my-presale-q3:sk_live_partner_key,dao-whitelist:sk_live_
               </a>
               <Link href="/passport" className="block hover:text-white">
                 → Get a passport
+              </Link>
+              <Link href="/wallet" className="block hover:text-white">
+                → Medusa wallet
               </Link>
             </div>
           </aside>
@@ -283,6 +329,64 @@ MEDUSA_PARTNER_API_KEYS=my-presale-q3:sk_live_partner_key,dao-whitelist:sk_live_
               </p>
             </Section>
 
+            <Section id="claim-wallet" title="Claim wallet">
+              <p className="normal-case">
+                Medusa Wallet ({baseUrl}/wallet) separates your{" "}
+                <span className="text-white">proving wallet</span> (used to mint
+                the passport) from a{" "}
+                <span className="text-white">claim wallet</span> (used for
+                presales and allowlists). The passport links reputation to the
+                claim address without putting your main wallet on-chain for the
+                campaign.
+              </p>
+              <ol className="list-decimal list-inside space-y-2 normal-case">
+                <li>Mint a passport on Medusa</li>
+                <li>Generate a fresh claim wallet in the browser</li>
+                <li>Export the backup JSON and store it offline</li>
+                <li>
+                  Register the claim wallet with the{" "}
+                  <span className="text-white">campaign ID</span> your partner
+                  gives you
+                </li>
+                <li>
+                  Submit the claim wallet address to the partner — not your
+                  proving wallet
+                </li>
+              </ol>
+              <CodeBlock title="User flow" code={claimWalletUserCode} language="bash" />
+              <p className="normal-case">
+                Users can register without a partner API key. Partners still use{" "}
+                <span className="text-white">/api/partner/register</span> with a
+                Bearer key from their backend.
+              </p>
+              <CodeBlock title="Register claim wallet (SDK)" code={claimWalletRegisterCode} />
+              <CodeBlock title="Rotate claim wallet (SDK)" code={claimWalletRotateCode} />
+              <p className="normal-case">
+                Rotation swaps the registered claim address for a campaign while
+                keeping the same passport nullifier. Generate a new wallet, then
+                call rotate.
+              </p>
+              <CodeBlock title="Backup JSON format" code={claimWalletBackupCode} language="json" />
+              <p className="normal-case">
+                Backups can be re-imported on /wallet. Secret keys stay in the
+                browser unless exported — Medusa never stores them.
+              </p>
+              <CodeBlock title="curl — claim register" code={curlClaimRegisterCode} language="bash" />
+              <p className="normal-case">
+                Public campaigns are controlled by{" "}
+                <span className="font-mono text-white/80">MEDUSA_CLAIM_CAMPAIGN_IDS</span>{" "}
+                on the server.
+              </p>
+              <div className="flex flex-wrap gap-3 pt-2">
+                <Link
+                  href="/wallet"
+                  className="px-4 py-3 border border-white font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"
+                >
+                  Open Medusa wallet
+                </Link>
+              </div>
+            </Section>
+
             <Section id="whitelist" title="Whitelist">
               <p>Export all registered wallets for a campaign:</p>
               <CodeBlock title="Fetch whitelist" code={whitelistCode} />
@@ -351,6 +455,18 @@ MEDUSA_PARTNER_API_KEYS=my-presale-q3:sk_live_partner_key,dao-whitelist:sk_live_
                       <td className="p-3">Bearer</td>
                       <td className="p-3 font-['PerfectDOS']">Register claim wallet</td>
                     </tr>
+                    <tr className="border-b border-white/10">
+                      <td className="p-3">/api/passport/claim/register</td>
+                      <td className="p-3">POST</td>
+                      <td className="p-3">—</td>
+                      <td className="p-3 font-['PerfectDOS']">User claim register</td>
+                    </tr>
+                    <tr className="border-b border-white/10">
+                      <td className="p-3">/api/passport/claim/rotate</td>
+                      <td className="p-3">POST</td>
+                      <td className="p-3">—</td>
+                      <td className="p-3 font-['PerfectDOS']">User claim rotate</td>
+                    </tr>
                     <tr>
                       <td className="p-3">/api/partner/whitelist</td>
                       <td className="p-3">GET</td>
@@ -374,6 +490,10 @@ MEDUSA_PARTNER_API_KEYS=my-presale-q3:sk_live_partner_key,dao-whitelist:sk_live_
                   whitelist payout.
                 </li>
                 <li>
+                  Claim wallet secret keys stay in the browser unless the user
+                  exports a backup JSON.
+                </li>
+                <li>
                   Each nullifier can register once per campaign (anti-sybil).
                 </li>
                 <li>
@@ -381,6 +501,12 @@ MEDUSA_PARTNER_API_KEYS=my-presale-q3:sk_live_partner_key,dao-whitelist:sk_live_
                 </li>
               </ul>
               <div className="flex flex-wrap gap-3 pt-4">
+                <Link
+                  href="/wallet"
+                  className="px-4 py-3 border border-white font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"
+                >
+                  Medusa wallet
+                </Link>
                 <Link
                   href="/passport"
                   className="px-4 py-3 border border-white font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"

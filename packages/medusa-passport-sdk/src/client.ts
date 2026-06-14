@@ -10,6 +10,10 @@ import type {
   PassportPolicy,
   RegisterPassportInput,
   RegisterPassportResult,
+  ClaimRegisterInput,
+  ClaimRegisterResult,
+  ClaimRotateInput,
+  ClaimRotateResult,
   VerifyPassportOptions,
   VerifyPassportResult,
   WhitelistEntry,
@@ -160,6 +164,56 @@ export class MedusaPassportClient {
     if (!response.ok || !payload.registered) {
       throw new MedusaPassportError(
         payload.error ?? "Passport registration failed.",
+        "REGISTRATION_FAILED",
+      );
+    }
+
+    return payload;
+  }
+
+  async registerClaimWallet(
+    input: ClaimRegisterInput,
+  ): Promise<ClaimRegisterResult> {
+    const response = await this.fetchImpl(
+      `${this.baseUrl}/api/passport/claim/register`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      },
+    );
+
+    const payload = (await response.json()) as ClaimRegisterResult & {
+      error?: string;
+    };
+
+    if (!response.ok || !payload.registered) {
+      throw new MedusaPassportError(
+        payload.error ?? "Claim wallet registration failed.",
+        "REGISTRATION_FAILED",
+      );
+    }
+
+    return payload;
+  }
+
+  async rotateClaimWallet(input: ClaimRotateInput): Promise<ClaimRotateResult> {
+    const response = await this.fetchImpl(
+      `${this.baseUrl}/api/passport/claim/rotate`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      },
+    );
+
+    const payload = (await response.json()) as ClaimRotateResult & {
+      error?: string;
+    };
+
+    if (!response.ok || !payload.rotated) {
+      throw new MedusaPassportError(
+        payload.error ?? "Claim wallet rotation failed.",
         "REGISTRATION_FAILED",
       );
     }

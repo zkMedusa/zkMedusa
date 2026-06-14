@@ -21,7 +21,7 @@ import {
   type ProofProgressStep,
 } from "@/lib/passport/prover.client";
 import { readJsonResponse } from "@/lib/passport/http.client";
-import { createPassportFetchWithPayment } from "@/lib/passport/x402.client";
+import { createPassportFetchWithPayment, fetchPassportIssueConfig } from "@/lib/passport/x402.client";
 import {
   fetchWalletWitness,
   formatVolumeInSol,
@@ -30,8 +30,10 @@ import {
 } from "@/lib/passport/witness";
 import { downloadPassportCard } from "@/lib/passport/downloadCard";
 import { formatPassportId } from "@/lib/passport/format";
+import { storePassportForWalletPage } from "@/lib/passport/claimWallet.client";
 import PassportVisualCard from "./PassportVisualCard";
 import StepIndicator from "./StepIndicator";
+import StickyPillarLayout from "@/components/StickyPillarLayout";
 import WalletConnectButton from "./WalletConnectButton";
 import type {
   EligibilityResult,
@@ -142,6 +144,7 @@ export default function PassportFlow() {
     null,
   );
   const [proofSecret] = useState(() => randomFieldSecret());
+  const [skipPayment, setSkipPayment] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const issuePriceLabel = useMemo(() => getPassportIssuePriceLabel(), []);
@@ -153,6 +156,12 @@ export default function PassportFlow() {
 
   useEffect(() => {
     preloadPassportProver();
+  }, []);
+
+  useEffect(() => {
+    void fetchPassportIssueConfig()
+      .then((config) => setSkipPayment(config.skipPayment))
+      .catch(() => setSkipPayment(false));
   }, []);
 
   useEffect(() => {
@@ -237,7 +246,11 @@ export default function PassportFlow() {
   }, [eligibility, proofSecret, witness]);
 
   const payAndIssue = useCallback(async () => {
-    if (!publicKey || !witness || !eligibility?.tier || !signAllTransactions) {
+    if (!publicKey || !witness || !eligibility?.tier) {
+      return;
+    }
+
+    if (!skipPayment && !signAllTransactions) {
       return;
     }
 
@@ -245,9 +258,11 @@ export default function PassportFlow() {
     setPhase("paying");
 
     try {
-      const readiness = await checkUsdcPaymentReadiness(connection, publicKey);
-      if (!readiness.ready) {
-        throw new Error(readiness.message);
+      if (!skipPayment) {
+        const readiness = await checkUsdcPaymentReadiness(connection, publicKey);
+        if (!readiness.ready) {
+          throw new Error(readiness.message);
+        }
       }
 
       let activeProof = proofResult;
@@ -264,13 +279,8 @@ export default function PassportFlow() {
         setPhase("issuing");
       }
 
-      const fetchWithPayment = createPassportFetchWithPayment(
-        publicKey.toBase58(),
-        signAllTransactions,
-      );
-
-      const response = await fetchWithPayment("/api/passport/issue", {
-        method: "POST",
+      const issueRequest = {
+        method: "POST" as const,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           zkProof: activeProof.zkProof,
@@ -278,7 +288,14 @@ export default function PassportFlow() {
           tier: eligibility.tier,
           publicInputs: activeProof.publicInputs,
         }),
-      });
+      };
+
+      const response = skipPayment
+        ? await fetch("/api/passport/issue", issueRequest)
+        : await createPassportFetchWithPayment(
+            publicKey.toBase58(),
+            signAllTransactions!,
+          )("/api/passport/issue", issueRequest);
 
       const payload = await readJsonResponse<{
         passport?: MedusaPassport;
@@ -290,6 +307,7 @@ export default function PassportFlow() {
       }
 
       setPassport(payload.passport);
+      storePassportForWalletPage(payload.passport);
       setPhase("done");
     } catch (flowError) {
       setError(formatPaymentError(flowError));
@@ -302,6 +320,7 @@ export default function PassportFlow() {
     proofSecret,
     publicKey,
     signAllTransactions,
+    skipPayment,
     witness,
   ]);
 
@@ -331,15 +350,7 @@ export default function PassportFlow() {
   }, [passport]);
 
   return (
-    <div className="min-h-screen w-full bg-black text-white flex items-stretch justify-between relative overflow-x-hidden">
-      <img
-        src="/pillar.gif"
-        alt=""
-        aria-hidden
-        className="hidden md:block h-full min-h-screen object-cover w-[12%] lg:w-[15%] ml-0 lg:ml-10 py-4 md:py-8 shrink-0"
-      />
-
-      <div className="flex-1 min-w-0 px-4 py-10 md:py-14">
+    <StickyPillarLayout>
         <div className="max-w-2xl mx-auto space-y-8">
         <header className="space-y-3 text-center md:text-left">
           <p className="font-['BlueScreen'] text-2xl md:text-4xl">
@@ -352,6 +363,13 @@ export default function PassportFlow() {
         </header>
 
         <StepIndicator currentStep={onboardingStep} />
+
+        {skipPayment && (
+          <div className="border border-yellow-500/30 bg-yellow-500/5 px-4 py-3 font-['PerfectDOS'] text-xs text-yellow-200/90 normal-case">
+            Dev mode — x402 payment skipped. Set PASSPORT_DEV_SKIP_PAYMENT=false
+            in production.
+          </div>
+        )}
 
         {isDevModeEnabled() && (
           <div className="border border-yellow-500/30 bg-yellow-500/5 px-4 py-3 font-['PerfectDOS'] text-xs text-yellow-200/90 normal-case">
@@ -462,21 +480,29 @@ export default function PassportFlow() {
           <StepCard
             step={4}
             title="Mint passport"
-            description={`Pay ${issuePriceLabel} USDC via x402 to receive your signed Medusa Passport. Valid for 90 days.`}
+            description={
+              skipPayment
+                ? "Issue your signed Medusa Passport without x402 payment (dev only). Valid for 90 days."
+                : `Pay ${issuePriceLabel} USDC via x402 to receive your signed Medusa Passport. Valid for 90 days.`
+            }
           >
             <div className="space-y-4">
-              <p className="font-['PerfectDOS'] text-xs text-white/60 normal-case">
-                Requires at least {issuePriceLabel} USDC in your wallet on Solana{" "}
-                {getSolanaNetwork()}. Transaction fees are covered by the x402
-                facilitator.
-              </p>
+              {!skipPayment && (
+                <p className="font-['PerfectDOS'] text-xs text-white/60 normal-case">
+                  Requires at least {issuePriceLabel} USDC in your wallet on Solana{" "}
+                  {getSolanaNetwork()}. Transaction fees are covered by the x402
+                  facilitator.
+                </p>
+              )}
               {eligibility?.tierLabel && (
                 <p className="font-['PerfectDOS'] text-sm text-white/80 normal-case">
                   Tier: <span className="text-white">{eligibility.tierLabel}</span>
                 </p>
               )}
               <PrimaryButton onClick={payAndIssue}>
-                Pay {issuePriceLabel} USDC & mint →
+                {skipPayment
+                  ? "Mint passport (no payment) →"
+                  : `Pay ${issuePriceLabel} USDC & mint →`}
               </PrimaryButton>
             </div>
           </StepCard>
@@ -518,6 +544,12 @@ export default function PassportFlow() {
                   {copied ? "Copied!" : "Copy JSON"}
                 </PrimaryButton>
                 <Link
+                  href="/wallet"
+                  className="inline-flex items-center px-6 py-3 border border-white font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"
+                >
+                  Set up claim wallet →
+                </Link>
+                <Link
                   href="/docs"
                   className="inline-flex items-center px-6 py-3 border border-white/40 font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"
                 >
@@ -543,14 +575,6 @@ export default function PassportFlow() {
           {witness ? `Scan: ${getWitnessSummary(witness)}` : "Private by design — no wallet data stored"}
         </p>
         </div>
-      </div>
-
-      <img
-        src="/pillar.gif"
-        alt=""
-        aria-hidden
-        className="hidden md:block h-full min-h-screen object-cover w-[12%] lg:w-[15%] mr-0 lg:mr-10 py-4 md:py-8 shrink-0"
-      />
-    </div>
+    </StickyPillarLayout>
   );
 }

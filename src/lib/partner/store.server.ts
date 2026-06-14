@@ -63,6 +63,40 @@ export function saveCampaignRegistration(
   return registration;
 }
 
+export function getCampaignRegistration(
+  campaignId: string,
+  nullifier: string,
+): PartnerRegistration | null {
+  return (
+    readRegistrations().find(
+      (entry) =>
+        entry.campaignId === campaignId && entry.nullifier === nullifier,
+    ) ?? null
+  );
+}
+
+export function rotateCampaignRegistration(
+  registration: PartnerRegistration,
+): PartnerRegistration {
+  const registrations = readRegistrations();
+  const index = registrations.findIndex(
+    (entry) =>
+      entry.campaignId === registration.campaignId &&
+      entry.nullifier === registration.nullifier,
+  );
+
+  if (index < 0) {
+    throw new Error("No claim wallet is registered for this passport and campaign.");
+  }
+
+  registrations[index] = {
+    ...registration,
+    registeredAt: new Date().toISOString(),
+  };
+  writeRegistrations(registrations);
+  return registrations[index];
+}
+
 export function listCampaignRegistrations(
   campaignId: string,
 ): PartnerRegistration[] {

@@ -8,6 +8,7 @@ Medusa lets wallets prove they are real and active — without exposing address 
 | --- | --- |
 | Website | [zkmedusa.com](https://www.zkmedusa.com) |
 | Mint passport | [/passport](https://www.zkmedusa.com/passport) |
+| Medusa wallet | [/wallet](https://www.zkmedusa.com/wallet) |
 | SDK docs | [/docs](https://www.zkmedusa.com/docs) |
 | npm package | [@zkmedusa/passport-sdk](https://www.npmjs.com/package/@zkmedusa/passport-sdk) |
 | X | [@ZkMedusa](https://x.com/ZkMedusa) |
@@ -23,6 +24,38 @@ Medusa lets wallets prove they are real and active — without exposing address 
 4. User pays **$0.50 USDC** via x402 to mint the passport.
 5. The server verifies the proof, signs the passport, and returns a JSON credential valid for **90 days**.
 6. Partners verify the passport with the SDK and optionally register a **claim wallet** for whitelist or presale access.
+
+---
+
+## Medusa Wallet
+
+[`/wallet`](https://www.zkmedusa.com/wallet) is the user-facing claim wallet flow — separate from minting on `/passport`.
+
+1. Mint a passport on `/passport` (or load an existing passport JSON on `/wallet`).
+2. Generate a fresh **claim wallet** keypair in the browser.
+3. **Export** a backup JSON and store it offline.
+4. **Import** a backup JSON to restore a claim wallet on another device.
+5. Register the claim wallet with your partner's **campaign ID**.
+6. Submit the **claim wallet address** to the partner — not your proving wallet.
+
+Users register via public endpoints (`/api/passport/claim/register` and `/rotate`) for campaigns listed in `MEDUSA_CLAIM_CAMPAIGN_IDS`. Partners still use Bearer-authenticated `/api/partner/register` from their backend.
+
+Backup JSON format:
+
+```json
+{
+  "type": "medusa_claim_wallet_v1",
+  "publicKey": "...",
+  "secretKeyBase58": "...",
+  "passportNullifier": "...",
+  "label": "Claim 1",
+  "createdAt": "2026-01-01T00:00:00.000Z"
+}
+```
+
+Claim wallet secrets live in browser `localStorage` only — Medusa never stores them. Passport JSON does **not** contain claim keys.
+
+Interactive docs: [zkmedusa.com/docs#claim-wallet](https://www.zkmedusa.com/docs#claim-wallet)
 
 ---
 
@@ -62,17 +95,18 @@ Policy version: `medusa-passport-v1`
 
 ```
 app/
-  api/passport/       Issue, verify, issuer endpoints
+  api/passport/       Issue, verify, issuer, claim register/rotate
   api/partner/        Register + whitelist endpoints
   passport/           Mint flow UI
+  wallet/             Claim wallet UI
   docs/               SDK documentation page
 circuits/passport/    Noir circuit source
 packages/
   medusa-passport-sdk/  Partner SDK (source + npm package)
 public/               Static assets, compiled circuit, WASM
 scripts/              Circuit compile, WASM copy, key generation
-src/components/       Landing + passport UI
-src/lib/passport/     ZK prover/verifier, x402, USDC, signing
+src/components/       Landing, passport, wallet UI
+src/lib/passport/     ZK prover/verifier, x402, claim wallet client
 src/lib/partner/      Partner auth + registration store
 ```
 
@@ -125,6 +159,7 @@ Copy `.env.example` to `.env.local`. Never commit real values.
 | `PASSPORT_ISSUER_SECRET_KEY` | Yes | Ed25519 secret for signing passports |
 | `PASSPORT_ISSUER_PUBLIC_KEY` | Yes | Ed25519 public key (also served via API) |
 | `MEDUSA_PARTNER_API_KEYS` | Partners | `campaignId:apiKey` pairs, comma-separated |
+| `MEDUSA_CLAIM_CAMPAIGN_IDS` | Yes | Comma-separated campaign IDs allowed on public claim register/rotate |
 | `PASSPORT_DEV_SKIP_PAYMENT` | Dev | Skip x402 payment during testing |
 | `PASSPORT_DEV_SKIP_ZK` | Dev | Accept dev proofs without ZK verification |
 | `NEXT_PUBLIC_PASSPORT_DEV_MODE` | Dev | Enable client-side dev proof mode |
@@ -252,6 +287,30 @@ const registration = await client.register({
 console.log(registration.claimWallet, registration.tierLabel);
 ```
 
+### Register claim wallet (user flow)
+
+Users can register without a partner API key on `/wallet` or via the SDK:
+
+```typescript
+await client.registerClaimWallet({
+  passport,
+  claimWallet: "FreshClaimWalletPublicKey...",
+  campaignId: "my-presale-q3",
+});
+```
+
+Rotate to a new claim address for the same campaign:
+
+```typescript
+await client.rotateClaimWallet({
+  passport,
+  claimWallet: "NewClaimWalletPublicKey...",
+  campaignId: "my-presale-q3",
+});
+```
+
+Public campaigns must be listed in `MEDUSA_CLAIM_CAMPAIGN_IDS`.
+
 ### Export whitelist
 
 ```typescript
@@ -292,6 +351,8 @@ Each key maps to one `campaignId`. Pass it as `Authorization: Bearer sk_live_par
 | `/api/passport/verify` | GET | — | Policy metadata |
 | `/api/passport/verify` | POST | — | Verify a passport |
 | `/api/partner/register` | POST | Bearer | Register passport + claim wallet |
+| `/api/passport/claim/register` | POST | — | User claim wallet register |
+| `/api/passport/claim/rotate` | POST | — | User claim wallet rotate |
 | `/api/partner/whitelist` | GET | Bearer | Export campaign whitelist |
 
 **Verify**
@@ -311,6 +372,18 @@ curl -X POST https://www.zkmedusa.com/api/partner/register \
   -d '{
     "passport": { ... },
     "claimWallet": "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU",
+    "campaignId": "my-presale-q3"
+  }'
+```
+
+**Claim register (public)**
+
+```bash
+curl -X POST https://www.zkmedusa.com/api/passport/claim/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "passport": { ... },
+    "claimWallet": "FreshClaimWalletPublicKey...",
     "campaignId": "my-presale-q3"
   }'
 ```
@@ -346,6 +419,7 @@ Example Next.js route: `packages/medusa-passport-sdk/examples/nextjs-whitelist-r
 
 - Passports prove eligibility without exposing the proving wallet.
 - Registration links a passport to a **claim wallet** for presale or whitelist payout.
+- Claim wallet secret keys stay in the browser unless the user exports a backup JSON.
 - Each nullifier can register **once per campaign** (anti-sybil).
 - Partners see tier and validity — not raw wallet history.
 
