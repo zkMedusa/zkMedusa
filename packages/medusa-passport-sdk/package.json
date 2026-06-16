@@ -1,6 +1,6 @@
 {
   "name": "@zkmedusa/passport-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Verify and register Medusa Passports in third-party apps, presales, and whitelists.",
   "license": "MIT",
   "type": "module",

@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   getPassportIssuePriceLabel,
-  getSolanaNetwork,
   PASSPORT_REQUIREMENTS,
 } from "@/lib/passport/config";
 import {
@@ -487,13 +486,6 @@ export default function PassportFlow() {
             }
           >
             <div className="space-y-4">
-              {!skipPayment && (
-                <p className="font-['PerfectDOS'] text-xs text-white/60 normal-case">
-                  Requires at least {issuePriceLabel} USDC in your wallet on Solana{" "}
-                  {getSolanaNetwork()}. Transaction fees are covered by the x402
-                  facilitator.
-                </p>
-              )}
               {eligibility?.tierLabel && (
                 <p className="font-['PerfectDOS'] text-sm text-white/80 normal-case">
                   Tier: <span className="text-white">{eligibility.tierLabel}</span>
@@ -504,6 +496,19 @@ export default function PassportFlow() {
                   ? "Mint passport (no payment) →"
                   : `Pay ${issuePriceLabel} USDC & mint →`}
               </PrimaryButton>
+              {!skipPayment && (
+                <p className="font-['PerfectDOS'] text-center text-xs text-white/40 normal-case">
+                  Powered by{" "}
+                  <a
+                    href="https://xpay.xona-agent.com/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-white/60 underline transition-colors hover:text-white"
+                  >
+                    xPay
+                  </a>
+                </p>
+              )}
             </div>
           </StepCard>
         )}

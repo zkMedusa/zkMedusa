@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { withX402 } from "@x402/next";
 import {
   getPublicInputs,
   PASSPORT_POLICY_VERSION,
@@ -15,10 +14,9 @@ import type { IssuePassportRequest, MedusaPassport } from "@/lib/passport/types"
 import { parseIssuePassportRequest } from "@/lib/passport/request.server";
 import { verifySubmittedProof } from "@/lib/passport/verify.server";
 import {
-  getPassportIssueRouteConfig,
-  getX402PaywallConfig,
-  getX402ResourceServer,
   formatX402SetupError,
+  getPassportIssueAmountAtomic,
+  getX402IssueServer,
   isPassportPaymentSkipped,
 } from "@/lib/passport/x402.server";
 import { getTreasuryUsdcAccountIssue } from "@/lib/passport/usdc.server";
@@ -103,21 +101,60 @@ function wrapIssueRouteWithPayment(
     return handler;
   }
 
-  const protectedHandler = withX402(
-    handler,
-    getPassportIssueRouteConfig(),
-    getX402ResourceServer(),
-    getX402PaywallConfig(),
-  );
-
   return async (request: NextRequest) => {
     try {
+      const paymentSignature = request.headers.get("PAYMENT-SIGNATURE") ?? request.headers.get("payment-signature");
+      const x402Server = getX402IssueServer();
+
       const treasuryIssue = await getTreasuryUsdcAccountIssue();
       if (treasuryIssue) {
         return NextResponse.json({ error: treasuryIssue }, { status: 503 });
       }
 
-      return await protectedHandler(request);
+      // First request: no payment signature yet — respond with a 402 payment
+      // challenge. Dexter's client SDK will pay and retry automatically.
+      if (!paymentSignature) {
+        const requirements = await x402Server.buildRequirements({
+          amountAtomic: getPassportIssueAmountAtomic(),
+          resourceUrl: request.url,
+          description: "Mint Medusa Passport",
+          mimeType: "application/json",
+        });
+
+        const response = x402Server.create402Response(requirements);
+        const bodyJson = JSON.stringify(response.body ?? {});
+
+        const res = new NextResponse(bodyJson, {
+          status: response.status,
+          headers: response.headers,
+        });
+
+        // Next sometimes lowercases/normalizes header values. Keep the
+        // browser/client behavior deterministic.
+        res.headers.set("Content-Type", "application/json");
+
+        return res;
+      }
+
+      // Retry request after the client paid. Verify + settle then run the
+      // actual issue handler.
+      const verify = await x402Server.verifyPayment(paymentSignature);
+      if (!verify.isValid) {
+        return NextResponse.json(
+          { error: verify.invalidReason ?? "Payment verification failed." },
+          { status: 402 },
+        );
+      }
+
+      const settle = await x402Server.settlePayment(paymentSignature);
+      if (!settle.success) {
+        return NextResponse.json(
+          { error: settle.errorReason ?? "Payment settlement failed." },
+          { status: 402 },
+        );
+      }
+
+      return await handler(request);
     } catch (error) {
       return NextResponse.json(
         { error: formatX402SetupError(error) },

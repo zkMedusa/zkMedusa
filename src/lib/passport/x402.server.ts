@@ -1,98 +1,62 @@
-import { createCdpAuthHeaders } from "@coinbase/x402";
-import { HTTPFacilitatorClient, x402ResourceServer } from "@x402/core/server";
-import type { RouteConfig } from "@x402/core/server";
-import { registerExactSvmScheme } from "@x402/svm/exact/server";
+import { createX402Server } from "@dexterai/x402/server";
+import { toAtomicUnits } from "@dexterai/x402/utils";
 import {
-  assertX402FacilitatorConfigured,
-  getCdpApiCredentials,
-  getPassportIssuePriceLabel,
-  getSolanaNetwork,
-  getX402FacilitatorUrl,
+  PASSPORT_ISSUE_PRICE_USDC,
   getX402SolanaNetworkCaip2,
-  isCdpFacilitatorUrl,
 } from "./config";
 
-let resourceServer: x402ResourceServer | null = null;
+let issueX402Server: ReturnType<typeof createX402Server> | null = null;
 
 export function isPassportPaymentSkipped(): boolean {
   return process.env.PASSPORT_DEV_SKIP_PAYMENT === "true";
 }
 
-export function getX402ResourceServer(): x402ResourceServer {
-  if (resourceServer) {
-    return resourceServer;
-  }
+function getConfiguredIssuePriceUsd(): string {
+  return (
+    process.env.NEXT_PUBLIC_PASSPORT_ISSUE_PRICE_USDC ??
+    process.env.PASSPORT_ISSUE_PRICE_USDC ??
+    PASSPORT_ISSUE_PRICE_USDC
+  );
+}
 
-  assertX402FacilitatorConfigured();
+export function getPassportIssueAmountAtomic(): string {
+  // x402 accepts amount in atomic units for the payment asset (USDC = 6 decimals).
+  const usd = getConfiguredIssuePriceUsd();
+  return toAtomicUnits(Number(usd), 6);
+}
+
+export function getX402IssueServer(): ReturnType<typeof createX402Server> {
+  if (issueX402Server) {
+    return issueX402Server;
+  }
 
   const treasury = process.env.PASSPORT_TREASURY_WALLET;
   if (!treasury) {
     throw new Error("PASSPORT_TREASURY_WALLET is not configured.");
   }
 
-  const facilitatorUrl = getX402FacilitatorUrl();
-  const cdpCredentials = getCdpApiCredentials();
-  const facilitatorClient = new HTTPFacilitatorClient({
-    url: facilitatorUrl,
-    ...(isCdpFacilitatorUrl(facilitatorUrl) && cdpCredentials
-      ? {
-          createAuthHeaders: createCdpAuthHeaders(
-            cdpCredentials.id,
-            cdpCredentials.secret,
-          ),
-        }
-      : {}),
+  // Dexter's client-side SDK expects a v2 flow and returns 402 challenges.
+  // If you override the facilitator URL, ensure it is compatible with x402 v2.
+  const facilitatorUrl =
+    process.env.X402_FACILITATOR_URL?.trim() || "https://x402.dexter.cash";
+
+  issueX402Server = createX402Server({
+    payTo: treasury,
+    network: getX402SolanaNetworkCaip2(),
+    facilitatorUrl,
+    // "exact" is the default, but keep it explicit for clarity.
+    scheme: "exact",
   });
 
-  resourceServer = new x402ResourceServer(facilitatorClient);
-  registerExactSvmScheme(resourceServer);
-
-  return resourceServer;
-}
-
-export function getPassportIssueRouteConfig(): RouteConfig {
-  const treasury = process.env.PASSPORT_TREASURY_WALLET;
-  if (!treasury) {
-    throw new Error("PASSPORT_TREASURY_WALLET is not configured.");
-  }
-
-  return {
-    accepts: {
-      scheme: "exact",
-      price: getPassportIssuePriceLabel(),
-      network: getX402SolanaNetworkCaip2(),
-      payTo: treasury,
-    },
-    description: "Mint Medusa Passport",
-    mimeType: "application/json",
-  };
-}
-
-export function getX402PaywallConfig() {
-  return {
-    appName: "Medusa Passport",
-    testnet: getSolanaNetwork() !== "mainnet-beta",
-  };
+  return issueX402Server;
 }
 
 export function formatX402SetupError(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
 
-  if (message.includes("Facilitator getSupported failed (401)")) {
-    return "x402 facilitator rejected the request (401). On devnet use https://x402.org/facilitator with no CDP keys. On mainnet set CDP_API_KEY_ID and CDP_API_KEY_SECRET.";
-  }
-
-  if (message.includes("Facilitator")) {
-    return `x402 payment setup failed: ${message}`;
-  }
-
   if (message.includes("PASSPORT_TREASURY_WALLET")) {
     return "Passport treasury wallet is not configured on the server.";
   }
 
-  if (message.includes("CDP_API_KEY")) {
-    return message;
-  }
-
-  return message;
+  return `x402 payment setup failed: ${message}`;
 }

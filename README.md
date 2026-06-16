@@ -153,9 +153,7 @@ Copy `.env.example` to `.env.local`. Never commit real values.
 | `PASSPORT_TREASURY_WALLET` | Prod | Solana address that receives USDC mint payments |
 | `NEXT_PUBLIC_PASSPORT_TREASURY_WALLET` | Prod | Same wallet, exposed to the client |
 | `NEXT_PUBLIC_PASSPORT_ISSUE_PRICE_USDC` | No | Mint price (default `$0.50`) |
-| `X402_FACILITATOR_URL` | No | Override x402 facilitator URL |
-| `CDP_API_KEY_ID` | Mainnet | Coinbase CDP key for mainnet x402 |
-| `CDP_API_KEY_SECRET` | Mainnet | Coinbase CDP secret for mainnet x402 |
+| `X402_FACILITATOR_URL` | No | Override x402 facilitator URL (default: `https://x402.dexter.cash`) |
 | `PASSPORT_ISSUER_SECRET_KEY` | Yes | Ed25519 secret for signing passports |
 | `PASSPORT_ISSUER_PUBLIC_KEY` | Yes | Ed25519 public key (also served via API) |
 | `MEDUSA_PARTNER_API_KEYS` | Partners | `campaignId:apiKey` pairs, comma-separated |
@@ -166,8 +164,8 @@ Copy `.env.example` to `.env.local`. Never commit real values.
 
 **x402 facilitator**
 
-- **Devnet** — leave `X402_FACILITATOR_URL` unset; uses `https://x402.org/facilitator` (no auth).
-- **Mainnet** — uses Coinbase CDP (`CDP_API_KEY_ID` + `CDP_API_KEY_SECRET`) or set a custom facilitator URL.
+- **Devnet/Mainnet** — leave `X402_FACILITATOR_URL` unset to use Dexter’s facilitator: `https://x402.dexter.cash`.
+- If you set `X402_FACILITATOR_URL`, ensure it is compatible with x402 v2 payments and supports Solana exact-scheme payments.
 
 **Treasury**
 

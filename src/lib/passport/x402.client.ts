@@ -1,12 +1,13 @@
 "use client";
 
-import { x402Client } from "@x402/core/client";
-import { wrapFetchWithPayment } from "@x402/fetch";
-import type { ClientSvmSigner } from "@x402/svm";
-import { ExactSvmScheme } from "@x402/svm/exact/client";
 import type { SignerWalletAdapterProps } from "@solana/wallet-adapter-base";
-import { getSolanaRpcUrl } from "./config";
-import { createWalletAdapterSigner } from "./walletAdapterSigner.client";
+import { createX402Client } from "@dexterai/x402/client";
+import type { SolanaWallet } from "@dexterai/x402/adapters";
+import {
+  getSolanaNetwork,
+  getSolanaRpcUrl,
+  getX402SolanaNetworkCaip2,
+} from "./config";
 
 type SignAllTransactions = SignerWalletAdapterProps["signAllTransactions"];
 
@@ -25,19 +26,55 @@ export async function fetchPassportIssueConfig(): Promise<PassportIssueConfig> {
   return { skipPayment: payload.skipPayment === true };
 }
 
+function createDexterSolanaWallet(
+  walletAddress: string,
+  signAllTransactions: SignAllTransactions,
+): SolanaWallet {
+  if (!signAllTransactions) {
+    throw new Error("Connected wallet does not support transaction signing.");
+  }
+
+  return {
+    publicKey: {
+      toBase58: () => walletAddress,
+    },
+    signTransaction: async <T>(tx: T): Promise<T> => {
+      // Dexter provides a concrete transaction object type at runtime.
+      // Wallet-adapter returns the same transaction type with signatures.
+      const signed = await signAllTransactions([tx as never] as never);
+      return signed[0] as T;
+    },
+  };
+}
+
 export function createPassportFetchWithPayment(
   walletAddress: string,
   signAllTransactions: SignAllTransactions,
 ) {
-  const signer = createWalletAdapterSigner(
+  const solanaWallet = createDexterSolanaWallet(
     walletAddress,
     signAllTransactions,
-  ) as unknown as ClientSvmSigner;
-  const client = new x402Client();
-  client.register(
-    "solana:*",
-    new ExactSvmScheme(signer, { rpcUrl: getSolanaRpcUrl() }),
   );
 
-  return wrapFetchWithPayment(fetch, client);
+  const network = getX402SolanaNetworkCaip2();
+  const rpcUrl = getSolanaRpcUrl();
+  // The adapter resolves an RPC by either the CAIP-2 id or the bare network
+  // name, so register our endpoint under both. Without it the adapter falls
+  // back to a default public RPC the browser can't reach ("Failed to fetch"
+  // when reading the USDC mint account).
+  const bareNetwork =
+    getSolanaNetwork() === "mainnet-beta" ? "solana" : "solana-devnet";
+
+  const client = createX402Client({
+    wallets: { solana: solanaWallet },
+    preferredNetwork: network,
+    rpcUrls: {
+      [network]: rpcUrl,
+      [bareNetwork]: rpcUrl,
+    },
+  });
+
+  // Keep the existing call pattern in `PassportFlow`.
+  return (input: Parameters<typeof client.fetch>[0], init?: RequestInit) =>
+    client.fetch(input, init);
 }
