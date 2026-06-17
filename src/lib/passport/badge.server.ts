@@ -20,6 +20,7 @@ import {
 } from "./config";
 import { getRedis, KV_KEYS } from "@/lib/kv.server";
 import { buildBadgeMetadataUri } from "./badge.shared";
+import { formatPassportId } from "./format";
 import type { MedusaPassport } from "./types";
 
 export interface BadgeRecord {
@@ -207,7 +208,7 @@ export async function mintSoulboundBadge(
           { key: "tierLevel", value: String(tier) },
           { key: "policyVersion", value: params.passport.statement.policyVersion },
           { key: "expiresAt", value: params.passport.expiresAt },
-          { key: "nullifier", value: params.passport.nullifier },
+          { key: "passportId", value: formatPassportId(params.passport.nullifier) },
           { key: "issuer", value: "medusa" },
         ],
       },

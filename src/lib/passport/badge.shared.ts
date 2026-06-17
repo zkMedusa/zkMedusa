@@ -90,20 +90,55 @@ export function buildBadgeMetadata(input: BadgeMetadataInput): BadgeMetadata {
 }
 
 /**
- * Builds the on-chain `uri` for a badge as a fully self-contained `data:` URI.
- * The entire metadata JSON — including the SVG image — is embedded so the badge
- * lives 100% on-chain and never depends on Medusa's servers being online.
+ * Compact metadata JSON used for the on-chain `data:` URI fallback. The SVG
+ * image is intentionally OMITTED here: embedding it would push the badge's
+ * `create` transaction past Solana's 1232-byte limit. The tier facts also live
+ * in the on-chain Attributes plugin, and the hosted route serves the full image.
+ */
+function buildOnchainMetadataJson(input: BadgeMetadataInput): string {
+  const tierLabel = input.tierLabel || TIER_LABELS[input.tier];
+
+  return JSON.stringify({
+    name: `Medusa Passport — ${tierLabel}`,
+    symbol: "MEDUSA",
+    description:
+      "Soulbound proof of a cleared Medusa Privacy Passport tier. Non-transferable.",
+    attributes: [
+      { trait_type: "Tier", value: tierLabel },
+      { trait_type: "Expires", value: input.expiresAt },
+      { trait_type: "Soulbound", value: "true" },
+    ],
+  });
+}
+
+function encodeBase64(value: string): string {
+  return typeof Buffer !== "undefined"
+    ? Buffer.from(value, "utf8").toString("base64")
+    : btoa(unescape(encodeURIComponent(value)));
+}
+
+/**
+ * Builds the short on-chain `uri` for a badge. The `uri` is written inside the
+ * mint transaction, so it must stay small (Solana caps transactions at 1232
+ * bytes) — a full image-bearing data URI does NOT fit.
  *
- * Set `MEDUSA_BADGE_METADATA_HOSTED=true` to instead point the `uri` at the
- * hosted `/api/passport/badge/metadata` endpoint (smaller account / lower rent).
+ * - Default: a short hosted URL (`/api/passport/badge/metadata`) when a public
+ *   app URL is configured. Keeps the mint tx tiny and serves the image with no
+ *   bucket required.
+ * - Fallback / `MEDUSA_BADGE_METADATA_ONCHAIN=true`: a compact, image-less
+ *   `data:` URI so the metadata is fully on-chain (no server dependency).
  */
 export function buildBadgeMetadataUri(input: BadgeMetadataInput): string {
-  const hosted =
+  const forceOnchain =
     typeof process !== "undefined" &&
-    process.env?.MEDUSA_BADGE_METADATA_HOSTED === "true";
+    process.env?.MEDUSA_BADGE_METADATA_ONCHAIN === "true";
   const base = getAppBaseUrl();
+  const hostable =
+    Boolean(base) &&
+    !base.includes("localhost") &&
+    !base.includes("127.0.0.1");
 
-  if (hosted && base) {
+  if (!forceOnchain && hostable) {
     const params = new URLSearchParams({
       tier: String(input.tier),
       exp: input.expiresAt,
@@ -113,10 +148,5 @@ export function buildBadgeMetadataUri(input: BadgeMetadataInput): string {
     return `${base}/api/passport/badge/metadata?${params.toString()}`;
   }
 
-  const json = JSON.stringify(buildBadgeMetadata(input));
-  const encoded =
-    typeof Buffer !== "undefined"
-      ? Buffer.from(json, "utf8").toString("base64")
-      : btoa(unescape(encodeURIComponent(json)));
-  return `data:application/json;base64,${encoded}`;
+  return `data:application/json;base64,${encodeBase64(buildOnchainMetadataJson(input))}`;
 }
