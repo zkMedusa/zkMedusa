@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     assertClaimPassport(body.passport);
     assertClaimCampaign(campaignId);
 
-    const existing = getCampaignRegistration(
+    const existing = await getCampaignRegistration(
       campaignId,
       body.passport.nullifier,
     );
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const registration = rotateCampaignRegistration(
+    const registration = await rotateCampaignRegistration(
       buildRegistrationPayload(body.passport, body.claimWallet, campaignId),
     );
 

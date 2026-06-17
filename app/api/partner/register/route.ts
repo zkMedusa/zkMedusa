@@ -85,7 +85,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (hasCampaignRegistration(body.campaignId, body.passport.nullifier)) {
+    if (await hasCampaignRegistration(body.campaignId, body.passport.nullifier)) {
       return NextResponse.json(
         { error: "This passport has already been registered for this campaign." },
         { status: 409 },
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
     }
 
     const registeredAt = new Date().toISOString();
-    const registration = saveCampaignRegistration({
+    const registration = await saveCampaignRegistration({
       campaignId: body.campaignId,
       nullifier: body.passport.nullifier,
       claimWallet: body.claimWallet,

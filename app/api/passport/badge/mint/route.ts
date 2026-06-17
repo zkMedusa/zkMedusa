@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     assertValidClaimWallet(body.claimWallet);
     assertClaimPassport(body.passport);
 
-    const existing = getBadgeForNullifier(body.passport.nullifier);
+    const existing = await getBadgeForNullifier(body.passport.nullifier);
     if (existing) {
       return NextResponse.json({ minted: true, alreadyMinted: true, badge: existing });
     }

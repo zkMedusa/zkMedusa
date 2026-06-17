@@ -28,7 +28,7 @@ async function issuePassport(request: NextRequest) {
   try {
     const body = await parseIssuePassportRequest(request);
 
-    if (hasNullifierBeenUsed(body.nullifier)) {
+    if (await hasNullifierBeenUsed(body.nullifier)) {
       return NextResponse.json(
         { error: "This passport nullifier has already been issued." },
         { status: 409 },
@@ -73,7 +73,7 @@ async function issuePassport(request: NextRequest) {
       signature: signPassportPayload(unsignedPassport),
     };
 
-    registerNullifier(body.nullifier);
+    await registerNullifier(body.nullifier);
 
     return NextResponse.json({ passport });
   } catch (error) {

@@ -1,5 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  getRedis,
+  KV_KEYS,
+  registrationField,
+} from "@/lib/kv.server";
 import type { PassportTier } from "@/lib/passport/config";
 
 export interface PartnerRegistration {
@@ -11,7 +16,16 @@ export interface PartnerRegistration {
   registeredAt: string;
 }
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+function getDataDir(): string {
+  // Vercel/Lambda filesystems are read-only except /tmp.
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join("/tmp", "medusa-passport");
+  }
+
+  return path.join(process.cwd(), ".data");
+}
+
+const DATA_DIR = getDataDir();
 const REGISTRATIONS_FILE = path.join(DATA_DIR, "partner-registrations.json");
 
 function readRegistrations(): PartnerRegistration[] {
@@ -33,19 +47,44 @@ function writeRegistrations(registrations: PartnerRegistration[]): void {
   );
 }
 
-export function hasCampaignRegistration(
+export async function hasCampaignRegistration(
   campaignId: string,
   nullifier: string,
-): boolean {
+): Promise<boolean> {
+  const redis = getRedis();
+  if (redis) {
+    return (
+      (await redis.hexists(
+        KV_KEYS.registrations,
+        registrationField(campaignId, nullifier),
+      )) === 1
+    );
+  }
+
   return readRegistrations().some(
     (entry) =>
       entry.campaignId === campaignId && entry.nullifier === nullifier,
   );
 }
 
-export function saveCampaignRegistration(
+export async function saveCampaignRegistration(
   registration: PartnerRegistration,
-): PartnerRegistration {
+): Promise<PartnerRegistration> {
+  const redis = getRedis();
+  if (redis) {
+    const field = registrationField(
+      registration.campaignId,
+      registration.nullifier,
+    );
+    if ((await redis.hexists(KV_KEYS.registrations, field)) === 1) {
+      throw new Error(
+        "This passport has already been registered for this campaign.",
+      );
+    }
+    await redis.hset(KV_KEYS.registrations, { [field]: registration });
+    return registration;
+  }
+
   const registrations = readRegistrations();
 
   if (
@@ -63,10 +102,20 @@ export function saveCampaignRegistration(
   return registration;
 }
 
-export function getCampaignRegistration(
+export async function getCampaignRegistration(
   campaignId: string,
   nullifier: string,
-): PartnerRegistration | null {
+): Promise<PartnerRegistration | null> {
+  const redis = getRedis();
+  if (redis) {
+    return (
+      (await redis.hget<PartnerRegistration>(
+        KV_KEYS.registrations,
+        registrationField(campaignId, nullifier),
+      )) ?? null
+    );
+  }
+
   return (
     readRegistrations().find(
       (entry) =>
@@ -75,9 +124,28 @@ export function getCampaignRegistration(
   );
 }
 
-export function rotateCampaignRegistration(
+export async function rotateCampaignRegistration(
   registration: PartnerRegistration,
-): PartnerRegistration {
+): Promise<PartnerRegistration> {
+  const redis = getRedis();
+  if (redis) {
+    const field = registrationField(
+      registration.campaignId,
+      registration.nullifier,
+    );
+    if ((await redis.hexists(KV_KEYS.registrations, field)) !== 1) {
+      throw new Error(
+        "No claim wallet is registered for this passport and campaign.",
+      );
+    }
+    const updated: PartnerRegistration = {
+      ...registration,
+      registeredAt: new Date().toISOString(),
+    };
+    await redis.hset(KV_KEYS.registrations, { [field]: updated });
+    return updated;
+  }
+
   const registrations = readRegistrations();
   const index = registrations.findIndex(
     (entry) =>
@@ -97,9 +165,20 @@ export function rotateCampaignRegistration(
   return registrations[index];
 }
 
-export function listCampaignRegistrations(
+export async function listCampaignRegistrations(
   campaignId: string,
-): PartnerRegistration[] {
+): Promise<PartnerRegistration[]> {
+  const redis = getRedis();
+  if (redis) {
+    const all =
+      (await redis.hgetall<Record<string, PartnerRegistration>>(
+        KV_KEYS.registrations,
+      )) ?? {};
+    return Object.values(all).filter(
+      (entry) => entry.campaignId === campaignId,
+    );
+  }
+
   return readRegistrations().filter(
     (entry) => entry.campaignId === campaignId,
   );

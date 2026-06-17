@@ -39,7 +39,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const entries = listCampaignRegistrations(campaignId);
+    const entries = await listCampaignRegistrations(campaignId);
 
     return NextResponse.json({
       campaignId,

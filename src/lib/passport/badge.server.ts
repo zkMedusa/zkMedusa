@@ -18,6 +18,7 @@ import {
   TIER_LABELS,
   type PassportTier,
 } from "./config";
+import { getRedis, KV_KEYS } from "@/lib/kv.server";
 import { buildBadgeMetadataUri } from "./badge.shared";
 import type { MedusaPassport } from "./types";
 
@@ -34,7 +35,16 @@ export interface BadgeRecord {
   mintedAt: string;
 }
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+function getDataDir(): string {
+  // Vercel/Lambda filesystems are read-only except /tmp.
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    return path.join("/tmp", "medusa-passport");
+  }
+
+  return path.join(process.cwd(), ".data");
+}
+
+const DATA_DIR = getDataDir();
 const BADGES_FILE = path.join(DATA_DIR, "passport-badges.json");
 
 function readBadges(): BadgeRecord[] {
@@ -51,8 +61,29 @@ function writeBadges(badges: BadgeRecord[]): void {
   fs.writeFileSync(BADGES_FILE, JSON.stringify(badges, null, 2));
 }
 
-export function getBadgeForNullifier(nullifier: string): BadgeRecord | null {
+export async function getBadgeForNullifier(
+  nullifier: string,
+): Promise<BadgeRecord | null> {
+  const redis = getRedis();
+  if (redis) {
+    return (
+      (await redis.hget<BadgeRecord>(KV_KEYS.badges, nullifier)) ?? null
+    );
+  }
+
   return readBadges().find((entry) => entry.nullifier === nullifier) ?? null;
+}
+
+async function saveBadge(record: BadgeRecord): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    await redis.hset(KV_KEYS.badges, { [record.nullifier]: record });
+    return;
+  }
+
+  const badges = readBadges();
+  badges.push(record);
+  writeBadges(badges);
 }
 
 export function isBadgeMintingConfigured(): boolean {
@@ -137,7 +168,7 @@ export interface MintBadgeParams {
 export async function mintSoulboundBadge(
   params: MintBadgeParams,
 ): Promise<BadgeRecord> {
-  const existing = getBadgeForNullifier(params.passport.nullifier);
+  const existing = await getBadgeForNullifier(params.passport.nullifier);
   if (existing) {
     return existing;
   }
@@ -202,9 +233,7 @@ export async function mintSoulboundBadge(
     mintedAt: new Date().toISOString(),
   };
 
-  const badges = readBadges();
-  badges.push(record);
-  writeBadges(badges);
+  await saveBadge(record);
 
   return record;
 }

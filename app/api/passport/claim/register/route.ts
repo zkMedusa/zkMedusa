@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     assertClaimPassport(body.passport);
     assertClaimCampaign(campaignId);
 
-    if (hasCampaignRegistration(campaignId, body.passport.nullifier)) {
+    if (await hasCampaignRegistration(campaignId, body.passport.nullifier)) {
       return NextResponse.json(
         {
           error:
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const registration = saveCampaignRegistration(
+    const registration = await saveCampaignRegistration(
       buildRegistrationPayload(body.passport, body.claimWallet, campaignId),
     );
 

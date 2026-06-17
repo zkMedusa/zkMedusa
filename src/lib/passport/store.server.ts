@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { getRedis, KV_KEYS } from "@/lib/kv.server";
 
 function getDataDir(): string {
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
@@ -33,11 +34,24 @@ function persistStore(nullifiers: Set<string>): void {
   );
 }
 
-export function hasNullifierBeenUsed(nullifier: string): boolean {
+export async function hasNullifierBeenUsed(
+  nullifier: string,
+): Promise<boolean> {
+  const redis = getRedis();
+  if (redis) {
+    return (await redis.sismember(KV_KEYS.nullifiers, nullifier)) === 1;
+  }
+
   return ensureStore().has(nullifier);
 }
 
-export function registerNullifier(nullifier: string): void {
+export async function registerNullifier(nullifier: string): Promise<void> {
+  const redis = getRedis();
+  if (redis) {
+    await redis.sadd(KV_KEYS.nullifiers, nullifier);
+    return;
+  }
+
   const nullifiers = ensureStore();
   nullifiers.add(nullifier);
   persistStore(nullifiers);
