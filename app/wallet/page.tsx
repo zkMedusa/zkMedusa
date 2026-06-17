@@ -1,15 +1,6 @@
-"use client";
-
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import ClaimWalletFlow from "@/components/passport/ClaimWalletFlow";
+import { redirect } from "next/navigation";
 
 export default function WalletPage() {
-  return (
-    <>
-      <Header />
-      <ClaimWalletFlow />
-      <Footer />
-    </>
-  );
+  // The claim wallet + soulbound badge flow now lives on the passport page.
+  redirect("/passport");
 }

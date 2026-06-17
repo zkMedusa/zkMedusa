@@ -67,6 +67,59 @@ export function getSolanaRpcUrl(): string {
     : "https://api.devnet.solana.com";
 }
 
+export function getSolanaExplorerUrl(
+  value: string,
+  kind: "address" | "tx" = "address",
+): string {
+  const suffix =
+    getSolanaNetwork() === "mainnet-beta" ? "" : "?cluster=devnet";
+  return `https://explorer.solana.com/${kind}/${value}${suffix}`;
+}
+
+export function getAppBaseUrl(): string {
+  const configured =
+    process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL;
+  return configured ? configured.replace(/\/$/, "") : "";
+}
+
+/**
+ * Server-only: base58-encoded secret key of the wallet that mints + owns
+ * (update authority) the soulbound passport badges. This wallet pays rent and
+ * tx fees, so keep it funded.
+ */
+export function getBadgeAuthoritySecretKey(): string | null {
+  return process.env.MEDUSA_BADGE_AUTHORITY_SECRET_KEY?.trim() || null;
+}
+
+/** Optional MPL Core collection the badges are minted into. */
+export function getBadgeCollectionAddress(): string | null {
+  return (
+    process.env.MEDUSA_BADGE_COLLECTION?.trim() ||
+    process.env.NEXT_PUBLIC_MEDUSA_BADGE_COLLECTION?.trim() ||
+    null
+  );
+}
+
+/** RPC used for minting badges (server). Falls back to the app RPC. */
+export function getBadgeRpcUrl(): string {
+  return process.env.MEDUSA_BADGE_RPC_URL?.trim() || getSolanaRpcUrl();
+}
+
+/**
+ * Client-visible flag that toggles the badge minting UI. Defaults to enabled
+ * when a public collection address is configured.
+ */
+export function isBadgeMintingEnabled(): boolean {
+  const flag = process.env.NEXT_PUBLIC_MEDUSA_BADGE_ENABLED?.trim();
+  if (flag === "true") {
+    return true;
+  }
+  if (flag === "false") {
+    return false;
+  }
+  return Boolean(process.env.NEXT_PUBLIC_MEDUSA_BADGE_COLLECTION?.trim());
+}
+
 export function getPassportIssuePriceLabel(): string {
   const configured =
     process.env.NEXT_PUBLIC_PASSPORT_ISSUE_PRICE_USDC ??

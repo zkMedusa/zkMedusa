@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import {
   getPassportIssuePriceLabel,
+  isBadgeMintingEnabled,
   PASSPORT_REQUIREMENTS,
 } from "@/lib/passport/config";
 import {
@@ -29,11 +30,22 @@ import {
 } from "@/lib/passport/witness";
 import { downloadPassportCard } from "@/lib/passport/downloadCard";
 import { formatPassportId } from "@/lib/passport/format";
-import { storePassportForWalletPage } from "@/lib/passport/claimWallet.client";
+import {
+  downloadClaimWalletBackup,
+  generateClaimWalletKeypair,
+  loadPassportFromSession,
+  markClaimWalletBadge,
+  saveClaimWallet,
+  storePassportForWalletPage,
+  type ClaimWalletBadge,
+  type ClaimWalletRecord,
+} from "@/lib/passport/claimWallet.client";
+import ClaimWalletPanel from "./ClaimWalletPanel";
 import PassportVisualCard from "./PassportVisualCard";
-import StepIndicator from "./StepIndicator";
+import StepIndicator, { type StepDefinition } from "./StepIndicator";
 import StickyPillarLayout from "@/components/StickyPillarLayout";
 import WalletConnectButton from "./WalletConnectButton";
+import type { BadgeRecord } from "@/lib/passport/badge.server";
 import type {
   EligibilityResult,
   MedusaPassport,
@@ -47,22 +59,31 @@ type FlowPhase =
   | "proving"
   | "paying"
   | "issuing"
+  | "claim"
+  | "badge"
   | "done";
 
-function getOnboardingStep(phase: FlowPhase, eligible: boolean): number {
+function getOnboardingStep(phase: FlowPhase, badgeEnabled: boolean): number {
+  const lastStep = badgeEnabled ? 6 : 5;
+
   switch (phase) {
     case "connect":
       return 1;
     case "scanning":
     case "review":
-      return eligible ? 2 : 2;
+      return 2;
     case "proving":
       return 3;
     case "paying":
     case "issuing":
       return 4;
-    case "done":
+    case "claim":
       return 5;
+    case "badge":
+      return 6;
+    case "done":
+      // Past the last step so every circle renders as complete.
+      return lastStep + 1;
     default:
       return 1;
   }
@@ -144,14 +165,35 @@ export default function PassportFlow() {
   );
   const [proofSecret] = useState(() => randomFieldSecret());
   const [skipPayment, setSkipPayment] = useState(false);
+  const [manageMode, setManageMode] = useState(false);
+  const [managePassport, setManagePassport] = useState<MedusaPassport | null>(
+    null,
+  );
+  const [claimWalletRecord, setClaimWalletRecord] =
+    useState<ClaimWalletRecord | null>(null);
+  const [claimCopied, setClaimCopied] = useState(false);
+  const [badge, setBadge] = useState<ClaimWalletBadge | null>(null);
+  const [badgeBusy, setBadgeBusy] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   const issuePriceLabel = useMemo(() => getPassportIssuePriceLabel(), []);
+  const badgeEnabled = useMemo(() => isBadgeMintingEnabled(), []);
 
-  const onboardingStep = getOnboardingStep(
-    phase,
-    eligibility?.eligible ?? false,
-  );
+  const flowSteps = useMemo<StepDefinition[]>(() => {
+    const steps: StepDefinition[] = [
+      { id: 1, label: "Connect" },
+      { id: 2, label: "Verify" },
+      { id: 3, label: "Prove" },
+      { id: 4, label: "Mint" },
+      { id: 5, label: "Wallet" },
+    ];
+    if (badgeEnabled) {
+      steps.push({ id: 6, label: "Badge" });
+    }
+    return steps;
+  }, [badgeEnabled]);
+
+  const onboardingStep = getOnboardingStep(phase, badgeEnabled);
 
   useEffect(() => {
     preloadPassportProver();
@@ -307,7 +349,7 @@ export default function PassportFlow() {
 
       setPassport(payload.passport);
       storePassportForWalletPage(payload.passport);
-      setPhase("done");
+      setPhase("claim");
     } catch (flowError) {
       setError(formatPaymentError(flowError));
       setPhase("paying");
@@ -333,6 +375,94 @@ export default function PassportFlow() {
     window.setTimeout(() => setCopied(false), 2000);
   }, [passport]);
 
+  const createClaimWallet = useCallback(() => {
+    if (!passport) {
+      return;
+    }
+
+    setError(null);
+    const generated = generateClaimWalletKeypair();
+    const record = saveClaimWallet(passport.nullifier, generated);
+    setClaimWalletRecord(record);
+  }, [passport]);
+
+  const copyClaimAddress = useCallback(async () => {
+    if (!claimWalletRecord) {
+      return;
+    }
+    await navigator.clipboard.writeText(claimWalletRecord.publicKey);
+    setClaimCopied(true);
+    window.setTimeout(() => setClaimCopied(false), 1500);
+  }, [claimWalletRecord]);
+
+  const continueToBadge = useCallback(() => {
+    setError(null);
+    setPhase(badgeEnabled ? "badge" : "done");
+  }, [badgeEnabled]);
+
+  const mintBadge = useCallback(async () => {
+    if (!passport || !claimWalletRecord) {
+      return;
+    }
+
+    setBadgeBusy(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/passport/badge/mint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          passport,
+          claimWallet: claimWalletRecord.publicKey,
+        }),
+      });
+
+      const payload = await readJsonResponse<{
+        minted?: boolean;
+        badge?: BadgeRecord;
+        error?: string;
+      }>(response);
+
+      if (!response.ok || !payload.minted || !payload.badge) {
+        throw new Error(payload.error ?? "Soulbound badge mint failed.");
+      }
+
+      const nextBadge: ClaimWalletBadge = {
+        assetId: payload.badge.assetId,
+        explorerUrl: payload.badge.explorerUrl,
+        tierLabel: payload.badge.tierLabel,
+        mintedAt: payload.badge.mintedAt,
+      };
+      markClaimWalletBadge(claimWalletRecord.id, nextBadge);
+      setBadge(nextBadge);
+      setPhase("done");
+    } catch (mintError) {
+      setError(
+        mintError instanceof Error
+          ? mintError.message
+          : "Unable to mint soulbound badge.",
+      );
+    } finally {
+      setBadgeBusy(false);
+    }
+  }, [claimWalletRecord, passport]);
+
+  const enterManageMode = useCallback(() => {
+    try {
+      const raw = loadPassportFromSession();
+      if (raw) {
+        const parsed = JSON.parse(raw) as MedusaPassport;
+        if (parsed.type === "medusa_passport_v1") {
+          setManagePassport(parsed);
+        }
+      }
+    } catch {
+      setManagePassport(null);
+    }
+    setManageMode(true);
+  }, []);
+
   const downloadVisualPassport = useCallback(async () => {
     if (!passport || !cardRef.current) {
       return;
@@ -356,12 +486,48 @@ export default function PassportFlow() {
             &#47;&#47; MEDUSA PASSPORT
           </p>
           <p className="font-['PerfectDOS'] text-sm text-white/60 normal-case leading-relaxed">
-            Five steps to mint your privacy passport. Your wallet address never
-            leaves your device.
+            Mint your privacy passport, spin up a fresh claim wallet, and mint a
+            soulbound on-chain badge — all in one place. Your wallet address
+            never leaves your device.
           </p>
         </header>
 
-        <StepIndicator currentStep={onboardingStep} />
+        {manageMode ? (
+          <div className="space-y-6">
+            <button
+              type="button"
+              onClick={() => setManageMode(false)}
+              className="font-['PerfectDOS'] text-xs uppercase text-white/50 hover:text-white transition-colors"
+            >
+              ← Back to passport minting
+            </button>
+            <ClaimWalletPanel
+              passport={managePassport}
+              onPassportLoad={setManagePassport}
+            />
+            <Link
+              href="/docs"
+              className="inline-flex items-center px-6 py-3 border border-white/40 font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"
+            >
+              SDK docs →
+            </Link>
+          </div>
+        ) : (
+          <>
+        <StepIndicator currentStep={onboardingStep} steps={flowSteps} />
+
+        {phase === "connect" && (
+          <p className="font-['PerfectDOS'] text-center text-xs text-white/40 normal-case">
+            Already have a passport?{" "}
+            <button
+              type="button"
+              onClick={enterManageMode}
+              className="text-white/70 underline transition-colors hover:text-white"
+            >
+              Manage claim wallets & soulbound badge →
+            </button>
+          </p>
+        )}
 
         {skipPayment && (
           <div className="border border-yellow-500/30 bg-yellow-500/5 px-4 py-3 font-['PerfectDOS'] text-xs text-yellow-200/90 normal-case">
@@ -523,9 +689,102 @@ export default function PassportFlow() {
           </StepCard>
         )}
 
-        {phase === "done" && passport && (
+        {phase === "claim" && passport && (
           <StepCard
             step={5}
+            title="Claim wallet"
+            description="Generate a fresh wallet with no on-chain history. Use it for presales and allowlists so your proving wallet stays private."
+          >
+            <div className="space-y-5">
+              {!claimWalletRecord ? (
+                <PrimaryButton onClick={createClaimWallet}>
+                  Generate claim wallet →
+                </PrimaryButton>
+              ) : (
+                <div className="space-y-4">
+                  <div className="border border-white/15 p-4 space-y-2">
+                    <p className="font-['PerfectDOS'] text-[10px] uppercase text-white/40">
+                      Your claim wallet
+                    </p>
+                    <p className="font-mono text-xs text-white break-all normal-case">
+                      {claimWalletRecord.publicKey}
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={copyClaimAddress}
+                        className="px-4 py-2 border border-white/30 font-['PerfectDOS'] uppercase text-xs text-white/80 hover:border-white hover:text-white transition-colors"
+                      >
+                        {claimCopied ? "Copied" : "Copy address"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => downloadClaimWalletBackup(claimWalletRecord)}
+                        className="px-4 py-2 border border-white/30 font-['PerfectDOS'] uppercase text-xs text-white/80 hover:border-white hover:text-white transition-colors"
+                      >
+                        Export backup
+                      </button>
+                    </div>
+                  </div>
+                  <div className="border border-yellow-500/20 bg-yellow-500/5 p-3 font-['PerfectDOS'] text-[11px] text-yellow-100/90 normal-case leading-relaxed">
+                    Back up the secret offline now. Medusa never sees your secret
+                    key — it stays in your browser until you export it.
+                  </div>
+                  <PrimaryButton onClick={continueToBadge}>
+                    {badgeEnabled ? "Continue to badge →" : "Finish →"}
+                  </PrimaryButton>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setPhase(badgeEnabled ? "badge" : "done")}
+                className="font-['PerfectDOS'] text-xs uppercase text-white/40 hover:text-white transition-colors"
+              >
+                Skip for now →
+              </button>
+            </div>
+          </StepCard>
+        )}
+
+        {phase === "badge" && passport && (
+          <StepCard
+            step={6}
+            title="Soulbound badge"
+            description="Mint a permanently-frozen MPL Core cNFT of your tier to the claim wallet. It can never be transferred, and Medusa mints it so your proving wallet stays unlinked."
+          >
+            <div className="space-y-5">
+              {eligibility?.tierLabel && (
+                <p className="font-['PerfectDOS'] text-sm text-white/80 normal-case">
+                  Tier: <span className="text-white">{eligibility.tierLabel}</span>
+                </p>
+              )}
+              {claimWalletRecord && (
+                <p className="font-['PerfectDOS'] text-[11px] text-white/50 normal-case break-all">
+                  Mints to: {claimWalletRecord.publicKey}
+                </p>
+              )}
+              <PrimaryButton onClick={mintBadge} disabled={badgeBusy || !claimWalletRecord}>
+                {badgeBusy ? "Minting..." : "Mint soulbound badge →"}
+              </PrimaryButton>
+              {!claimWalletRecord && (
+                <p className="font-['PerfectDOS'] text-[11px] text-red-300 normal-case">
+                  Generate a claim wallet first.
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => setPhase("done")}
+                className="font-['PerfectDOS'] text-xs uppercase text-white/40 hover:text-white transition-colors"
+              >
+                Skip for now →
+              </button>
+            </div>
+          </StepCard>
+        )}
+
+        {phase === "done" && passport && (
+          <StepCard
+            step={badgeEnabled ? 6 : 5}
             title="Passport ready"
             description="Your passport is issued. Download it or copy the JSON to use with partner apps via the SDK."
           >
@@ -538,6 +797,39 @@ export default function PassportFlow() {
                 Passport ID: {formatPassportId(passport.nullifier)}
               </p>
 
+              {(claimWalletRecord || badge) && (
+                <div className="border border-white/15 p-4 space-y-2 font-['PerfectDOS'] text-[11px] normal-case">
+                  {claimWalletRecord && (
+                    <div className="space-y-1">
+                      <p className="text-white/40 uppercase text-[10px]">
+                        Claim wallet
+                      </p>
+                      <p className="font-mono text-white/80 break-all">
+                        {claimWalletRecord.publicKey}
+                      </p>
+                    </div>
+                  )}
+                  {badge && (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-white/40 uppercase text-[10px]">
+                        Soulbound badge ({badge.tierLabel})
+                      </p>
+                      <p className="font-mono text-white/80 break-all">
+                        {badge.assetId}
+                      </p>
+                      <a
+                        href={badge.explorerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-block text-white/60 underline hover:text-white"
+                      >
+                        View on explorer →
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-3 justify-center md:justify-start">
                 <PrimaryButton
                   onClick={downloadVisualPassport}
@@ -548,12 +840,13 @@ export default function PassportFlow() {
                 <PrimaryButton onClick={copyPassport}>
                   {copied ? "Copied!" : "Copy JSON"}
                 </PrimaryButton>
-                <Link
-                  href="/wallet"
-                  className="inline-flex items-center px-6 py-3 border border-white font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"
+                <button
+                  type="button"
+                  onClick={enterManageMode}
+                  className="inline-flex items-center px-6 py-3 border border-white/40 font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"
                 >
-                  Set up claim wallet →
-                </Link>
+                  Register for a campaign →
+                </button>
                 <Link
                   href="/docs"
                   className="inline-flex items-center px-6 py-3 border border-white/40 font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"
@@ -579,6 +872,8 @@ export default function PassportFlow() {
         <p className="font-['PerfectDOS'] text-[10px] text-white/30 text-center normal-case">
           {witness ? `Scan: ${getWitnessSummary(witness)}` : "Private by design — no wallet data stored"}
         </p>
+          </>
+        )}
         </div>
     </StickyPillarLayout>
   );

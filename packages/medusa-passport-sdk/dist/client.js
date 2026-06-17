@@ -1,4 +1,5 @@
 import { MedusaPassportError } from "./errors.js";
+import { fetchPassportBadges, hasPassportBadge, } from "./badges.js";
 import { parsePassportJson, verifyPassport, verifyPassportSignature, } from "./verify.js";
 export class MedusaPassportClient {
     constructor(options) {
@@ -131,6 +132,18 @@ export class MedusaPassportClient {
             throw new MedusaPassportError(payload.error ?? "Failed to fetch whitelist.", "API_ERROR");
         }
         return payload.entries ?? [];
+    }
+    async getBadges(owner, options) {
+        return fetchPassportBadges(owner, {
+            fetchImpl: this.fetchImpl,
+            ...options,
+        });
+    }
+    async hasBadge(owner, options) {
+        return hasPassportBadge(owner, {
+            fetchImpl: this.fetchImpl,
+            ...options,
+        });
     }
     hasValidSignature(passport, issuerPublicKey) {
         const key = issuerPublicKey ?? this.issuerPublicKey;

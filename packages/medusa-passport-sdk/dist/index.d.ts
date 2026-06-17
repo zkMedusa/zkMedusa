@@ -5,4 +5,6 @@ export { PASSPORT_POLICY_VERSION, PASSPORT_TIERS, TIER_LABELS, } from "./types.j
 export type { IssuerInfo, MedusaPassport, PassportPolicy, PassportPublicInputs, PassportStatement, PassportTier, RegisterPassportInput, RegisterPassportResult, ClaimRegisterInput, ClaimRegisterResult, ClaimRotateInput, ClaimRotateResult, VerifyPassportOptions, VerifyPassportResult, WhitelistEntry, ZkProofBundle, } from "./types.js";
 export { hexToBytes, isValidSolanaAddress } from "./utils.js";
 export { parsePassportJson, verifyPassport, verifyPassportSignature, } from "./verify.js";
+export { fetchPassportBadges, hasPassportBadge } from "./badges.js";
+export type { PassportBadge, FetchPassportBadgesOptions } from "./badges.js";
 //# sourceMappingURL=index.d.ts.map

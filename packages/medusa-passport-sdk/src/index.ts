@@ -30,3 +30,5 @@ export {
   verifyPassport,
   verifyPassportSignature,
 } from "./verify.js";
+export { fetchPassportBadges, hasPassportBadge } from "./badges.js";
+export type { PassportBadge, FetchPassportBadgesOptions } from "./badges.js";

@@ -1,5 +1,11 @@
 import { MedusaPassportError } from "./errors.js";
 import {
+  fetchPassportBadges,
+  hasPassportBadge,
+  type FetchPassportBadgesOptions,
+  type PassportBadge,
+} from "./badges.js";
+import {
   parsePassportJson,
   verifyPassport,
   verifyPassportSignature,
@@ -251,6 +257,26 @@ export class MedusaPassportClient {
     }
 
     return payload.entries ?? [];
+  }
+
+  async getBadges(
+    owner: string,
+    options: FetchPassportBadgesOptions,
+  ): Promise<PassportBadge[]> {
+    return fetchPassportBadges(owner, {
+      fetchImpl: this.fetchImpl,
+      ...options,
+    });
+  }
+
+  async hasBadge(
+    owner: string,
+    options: FetchPassportBadgesOptions,
+  ): Promise<boolean> {
+    return hasPassportBadge(owner, {
+      fetchImpl: this.fetchImpl,
+      ...options,
+    });
   }
 
   hasValidSignature(passport: MedusaPassport, issuerPublicKey?: string): boolean {

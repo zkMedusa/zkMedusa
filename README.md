@@ -24,19 +24,27 @@ Medusa lets wallets prove they are real and active — without exposing address 
 4. User pays **$0.50 USDC** via x402 to mint the passport.
 5. The server verifies the proof, signs the passport, and returns a JSON credential valid for **90 days**.
 6. Partners verify the passport with the SDK and optionally register a **claim wallet** for whitelist or presale access.
+7. Optionally mint a **soulbound passport badge** (non-transferable MPL Core cNFT) to the claim wallet for on-chain composability.
 
 ---
 
-## Medusa Wallet
+## Medusa Wallet & soulbound badge
 
-[`/wallet`](https://www.zkmedusa.com/wallet) is the user-facing claim wallet flow — separate from minting on `/passport`.
+The claim wallet flow and soulbound badge minting now live on the same page as
+minting, [`/passport`](https://www.zkmedusa.com/passport). `/wallet` redirects
+there. Returning users can pick **"Manage claim wallets & soulbound badge"** to
+load an existing passport without re-minting.
 
-1. Mint a passport on `/passport` (or load an existing passport JSON on `/wallet`).
+1. Mint a passport on `/passport` (or load an existing passport JSON via "Manage").
 2. Generate a fresh **claim wallet** keypair in the browser.
 3. **Export** a backup JSON and store it offline.
 4. **Import** a backup JSON to restore a claim wallet on another device.
 5. Register the claim wallet with your partner's **campaign ID**.
 6. Submit the **claim wallet address** to the partner — not your proving wallet.
+7. Optionally **mint a soulbound badge** to the claim wallet — a permanently
+   frozen MPL Core asset whose on-chain attributes mirror your tier. Medusa
+   mints it (paying rent/fees) so the badge is never linked to your proving
+   wallet, and it can never be transferred.
 
 Users register via public endpoints (`/api/passport/claim/register` and `/rotate`) for campaigns listed in `MEDUSA_CLAIM_CAMPAIGN_IDS`. Partners still use Bearer-authenticated `/api/partner/register` from their backend.
 
@@ -95,10 +103,10 @@ Policy version: `medusa-passport-v1`
 
 ```
 app/
-  api/passport/       Issue, verify, issuer, claim register/rotate
+  api/passport/       Issue, verify, issuer, claim register/rotate, badge mint/metadata
   api/partner/        Register + whitelist endpoints
-  passport/           Mint flow UI
-  wallet/             Claim wallet UI
+  passport/           Mint + claim wallet + soulbound badge UI
+  wallet/             Redirects to /passport
   docs/               SDK documentation page
 circuits/passport/    Noir circuit source
 packages/
@@ -158,6 +166,11 @@ Copy `.env.example` to `.env.local`. Never commit real values.
 | `PASSPORT_ISSUER_PUBLIC_KEY` | Yes | Ed25519 public key (also served via API) |
 | `MEDUSA_PARTNER_API_KEYS` | Partners | `campaignId:apiKey` pairs, comma-separated |
 | `MEDUSA_CLAIM_CAMPAIGN_IDS` | Yes | Comma-separated campaign IDs allowed on public claim register/rotate |
+| `MEDUSA_BADGE_AUTHORITY_SECRET_KEY` | Badge | Base58/JSON secret of the wallet that mints + holds freeze authority for soulbound badges (keep funded) |
+| `MEDUSA_BADGE_COLLECTION` | Badge | MPL Core collection address (create once with `npm run badge:collection`) |
+| `NEXT_PUBLIC_MEDUSA_BADGE_COLLECTION` | Badge | Same collection, exposed to the client |
+| `MEDUSA_BADGE_RPC_URL` | No | Dedicated RPC for minting badges (defaults to `NEXT_PUBLIC_SOLANA_RPC_URL`) |
+| `NEXT_PUBLIC_MEDUSA_BADGE_ENABLED` | No | Toggle badge minting UI (defaults on when a public collection is set) |
 | `PASSPORT_DEV_SKIP_PAYMENT` | Dev | Skip x402 payment during testing |
 | `PASSPORT_DEV_SKIP_ZK` | Dev | Accept dev proofs without ZK verification |
 | `NEXT_PUBLIC_PASSPORT_DEV_MODE` | Dev | Enable client-side dev proof mode |
@@ -182,6 +195,7 @@ The treasury wallet must have a USDC token account on the target network before 
 | `npm run copy:noir-wasm` | Copy Noir WASM to `public/wasm/` |
 | `npm run copy:bb-wasm` | Copy Barretenberg WASM for serverless |
 | `npm run passport:keys` | Generate issuer Ed25519 key pair |
+| `npm run badge:collection` | Create the soulbound badge MPL Core collection (prints a new authority key if unset) |
 | `npm run build:sdk` | Build `@zkmedusa/passport-sdk` |
 | `npm run publish:sdk` | Publish SDK to npm |
 
@@ -331,6 +345,33 @@ if (!result.valid) throw new Error("Not eligible");
 const maxSol = ALLOCATION_BY_TIER[result.tier!];
 ```
 
+### Soulbound badge gating
+
+Gate by the on-chain soulbound badge instead of (or alongside) the signed
+passport. Requires a DAS-capable RPC (Helius/Triton/QuickNode):
+
+```typescript
+import { fetchPassportBadges, hasPassportBadge, PASSPORT_TIERS } from "@zkmedusa/passport-sdk";
+
+const allowed = await hasPassportBadge(walletAddress, {
+  dasRpcUrl: process.env.DAS_RPC_URL!,
+  collection: process.env.MEDUSA_BADGE_COLLECTION,
+  minTier: PASSPORT_TIERS.SILVER,
+  requireFrozen: true, // soulbound only (default)
+});
+
+// Or read full badge details:
+const badges = await fetchPassportBadges(walletAddress, {
+  dasRpcUrl: process.env.DAS_RPC_URL!,
+  collection: process.env.MEDUSA_BADGE_COLLECTION,
+});
+// badges[0] => { assetId, owner, frozen, tier, tierLabel, nullifier, expiresAt }
+```
+
+The `client.getBadges(owner, opts)` / `client.hasBadge(owner, opts)` methods
+wrap the same helpers. The authoritative tier is always the signed passport;
+on-chain attributes are a convenience mirror.
+
 ### Partner API keys
 
 Operators configure keys server-side:
@@ -351,6 +392,8 @@ Each key maps to one `campaignId`. Pass it as `Authorization: Bearer sk_live_par
 | `/api/partner/register` | POST | Bearer | Register passport + claim wallet |
 | `/api/passport/claim/register` | POST | — | User claim wallet register |
 | `/api/passport/claim/rotate` | POST | — | User claim wallet rotate |
+| `/api/passport/badge/mint` | POST | — | Mint soulbound badge to a claim wallet |
+| `/api/passport/badge/metadata` | GET | — | Badge NFT metadata JSON |
 | `/api/partner/whitelist` | GET | Bearer | Export campaign whitelist |
 
 **Verify**
@@ -400,6 +443,9 @@ MedusaPassportClient
 
 // Verification
 parsePassportJson, verifyPassport, verifyPassportSignature
+
+// Soulbound badge gating (DAS)
+fetchPassportBadges, hasPassportBadge
 
 // Constants
 PASSPORT_POLICY_VERSION, PASSPORT_TIERS, TIER_LABELS

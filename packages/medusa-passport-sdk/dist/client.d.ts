@@ -1,3 +1,4 @@
+import { type FetchPassportBadgesOptions, type PassportBadge } from "./badges.js";
 import type { IssuerInfo, MedusaPassport, PassportPolicy, RegisterPassportInput, RegisterPassportResult, ClaimRegisterInput, ClaimRegisterResult, ClaimRotateInput, ClaimRotateResult, VerifyPassportOptions, VerifyPassportResult, WhitelistEntry } from "./types.js";
 export interface MedusaPassportClientOptions {
     baseUrl: string;
@@ -21,6 +22,8 @@ export declare class MedusaPassportClient {
     registerClaimWallet(input: ClaimRegisterInput): Promise<ClaimRegisterResult>;
     rotateClaimWallet(input: ClaimRotateInput): Promise<ClaimRotateResult>;
     getWhitelist(campaignId: string): Promise<WhitelistEntry[]>;
+    getBadges(owner: string, options: FetchPassportBadgesOptions): Promise<PassportBadge[]>;
+    hasBadge(owner: string, options: FetchPassportBadgesOptions): Promise<boolean>;
     hasValidSignature(passport: MedusaPassport, issuerPublicKey?: string): boolean;
 }
 //# sourceMappingURL=client.d.ts.map

@@ -236,7 +236,7 @@ await client.registerClaimWallet({
               <Link href="/passport" className="block hover:text-white">
                 → Get a passport
               </Link>
-              <Link href="/wallet" className="block hover:text-white">
+              <Link href="/passport" className="block hover:text-white">
                 → Medusa wallet
               </Link>
             </div>
@@ -379,7 +379,7 @@ await client.registerClaimWallet({
               </p>
               <div className="flex flex-wrap gap-3 pt-2">
                 <Link
-                  href="/wallet"
+                  href="/passport"
                   className="px-4 py-3 border border-white font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"
                 >
                   Open Medusa wallet
@@ -502,7 +502,7 @@ await client.registerClaimWallet({
               </ul>
               <div className="flex flex-wrap gap-3 pt-4">
                 <Link
-                  href="/wallet"
+                  href="/passport"
                   className="px-4 py-3 border border-white font-['PerfectDOS'] uppercase text-sm hover:bg-white hover:text-black transition-colors"
                 >
                   Medusa wallet

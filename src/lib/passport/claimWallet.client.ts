@@ -6,6 +6,13 @@ import bs58 from "bs58";
 const STORAGE_KEY = "medusa-claim-wallets-v1";
 const PASSPORT_SESSION_KEY = "medusa-passport-active";
 
+export interface ClaimWalletBadge {
+  assetId: string;
+  explorerUrl: string;
+  tierLabel: string;
+  mintedAt: string;
+}
+
 export interface ClaimWalletRecord {
   id: string;
   publicKey: string;
@@ -17,6 +24,7 @@ export interface ClaimWalletRecord {
     campaignId: string;
     registeredAt: string;
   }>;
+  badge?: ClaimWalletBadge;
 }
 
 export interface GeneratedClaimWallet {
@@ -123,6 +131,26 @@ export function markClaimWalletRegistered(
       ...existing,
       { campaignId, registeredAt: new Date().toISOString() },
     ],
+  };
+
+  writeStore(records);
+  return records[index];
+}
+
+export function markClaimWalletBadge(
+  walletId: string,
+  badge: ClaimWalletBadge,
+): ClaimWalletRecord | null {
+  const records = readStore();
+  const index = records.findIndex((record) => record.id === walletId);
+
+  if (index < 0) {
+    return null;
+  }
+
+  records[index] = {
+    ...records[index],
+    badge,
   };
 
   writeStore(records);

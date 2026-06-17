@@ -2,7 +2,6 @@ import Link from "next/link";
 
 const navLinks = [
   { label: "PASSPORT", href: "/passport" },
-  { label: "WALLET", href: "/wallet" },
   { label: "SDK DOCS", href: "/docs" },
   { label: "ABOUT", href: "/#about" },
   { label: "TWITTER", href: "https://x.com/ZkMedusa", external: true },

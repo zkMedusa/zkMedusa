@@ -3,16 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { readJsonResponse } from "@/lib/passport/http.client";
 import { formatPassportId } from "@/lib/passport/format";
+import { isBadgeMintingEnabled } from "@/lib/passport/config";
 import {
   downloadClaimWalletBackup,
   generateClaimWalletKeypair,
   importClaimWalletBackup,
   listClaimWallets,
+  markClaimWalletBadge,
   markClaimWalletRegistered,
   parseClaimWalletBackup,
   saveClaimWallet,
   type ClaimWalletRecord,
 } from "@/lib/passport/claimWallet.client";
+import type { BadgeRecord } from "@/lib/passport/badge.server";
 import type { MedusaPassport } from "@/lib/passport/types";
 
 interface ClaimWalletPanelProps {
@@ -121,8 +124,11 @@ export default function ClaimWalletPanel({
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [badgeBusy, setBadgeBusy] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [campaignAlreadyRegistered, setCampaignAlreadyRegistered] = useState(false);
+
+  const badgeEnabled = useMemo(() => isBadgeMintingEnabled(), []);
 
   const selectedWallet = useMemo(
     () => claimWallets.find((wallet) => wallet.id === selectedWalletId) ?? null,
@@ -366,6 +372,61 @@ export default function ClaimWalletPanel({
     }
   }, [activePassport, campaignId, refreshWallets, selectedWallet]);
 
+  const mintBadge = useCallback(async () => {
+    if (!activePassport || !selectedWallet) {
+      return;
+    }
+
+    setBadgeBusy(true);
+    setError(null);
+    setStatus(null);
+
+    try {
+      const response = await fetch("/api/passport/badge/mint", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          passport: activePassport,
+          claimWallet: selectedWallet.publicKey,
+          campaignId,
+        }),
+      });
+
+      const payload = await readJsonResponse<{
+        minted?: boolean;
+        alreadyMinted?: boolean;
+        badge?: BadgeRecord;
+        error?: string;
+      }>(response);
+
+      if (!response.ok || !payload.minted || !payload.badge) {
+        throw new Error(payload.error ?? "Soulbound badge mint failed.");
+      }
+
+      const badge = payload.badge;
+      markClaimWalletBadge(selectedWallet.id, {
+        assetId: badge.assetId,
+        explorerUrl: badge.explorerUrl,
+        tierLabel: badge.tierLabel,
+        mintedAt: badge.mintedAt,
+      });
+      refreshWallets(activePassport.nullifier);
+      setStatus(
+        payload.alreadyMinted
+          ? `Soulbound passport already minted: ${badge.assetId}`
+          : `Soulbound passport minted to ${selectedWallet.publicKey.slice(0, 8)}… — non-transferable.`,
+      );
+    } catch (mintError) {
+      setError(
+        mintError instanceof Error
+          ? mintError.message
+          : "Unable to mint soulbound badge.",
+      );
+    } finally {
+      setBadgeBusy(false);
+    }
+  }, [activePassport, campaignId, refreshWallets, selectedWallet]);
+
   const hasLocalCampaignRegistration = useMemo(() => {
     return claimWallets.some((wallet) =>
       wallet.registrations.some((entry) => entry.campaignId === campaignId),
@@ -541,6 +602,43 @@ export default function ClaimWalletPanel({
                   Generate a fresh claim wallet above, select it, then rotate so
                   the campaign points to your new address.
                 </p>
+              )}
+
+              {badgeEnabled && (
+                <div className="border-t border-white/10 pt-4 space-y-3">
+                  <p className="font-['PerfectDOS'] text-[10px] uppercase text-white/40">
+                    Soulbound passport (cNFT)
+                  </p>
+                  {selectedWallet.badge ? (
+                    <div className="space-y-2 font-['PerfectDOS'] text-[11px] normal-case">
+                      <p className="text-emerald-200">
+                        Minted · {selectedWallet.badge.tierLabel} · non-transferable
+                      </p>
+                      <p className="font-mono text-white/70 break-all">
+                        {selectedWallet.badge.assetId}
+                      </p>
+                      <a
+                        href={selectedWallet.badge.explorerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-block text-white/60 underline hover:text-white"
+                      >
+                        View on explorer →
+                      </a>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-['PerfectDOS'] text-[11px] text-white/50 normal-case leading-relaxed">
+                        Mint a permanently-frozen MPL Core asset of your tier to
+                        this claim wallet. It can never be transferred, and Medusa
+                        mints it so your proving wallet stays unlinked.
+                      </p>
+                      <PanelButton onClick={mintBadge} disabled={badgeBusy}>
+                        {badgeBusy ? "Minting..." : "Mint soulbound passport"}
+                      </PanelButton>
+                    </>
+                  )}
+                </div>
               )}
             </div>
           )}
