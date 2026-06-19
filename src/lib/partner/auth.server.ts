@@ -39,6 +39,13 @@ export function getAuthorizedCampaignId(
   return partner?.campaignId ?? null;
 }
 
+/** Same key map as campaigns — token partners use their partner id (e.g. deepbot). */
+export function getAuthorizedPartnerId(
+  authorizationHeader: string | null,
+): string | null {
+  return getAuthorizedCampaignId(authorizationHeader);
+}
+
 export function isPartnerAuthConfigured(): boolean {
   return loadPartnerKeys().length > 0;
 }

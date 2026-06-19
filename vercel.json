@@ -9,5 +9,11 @@
     "app/api/passport/issue/route.ts": {
       "maxDuration": 300
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/partner/cron/refresh",
+      "schedule": "0 0 * * *"
+    }
+  ]
 }

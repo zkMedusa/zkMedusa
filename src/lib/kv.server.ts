@@ -25,7 +25,18 @@ export const KV_KEYS = {
   nullifiers: "medusa:nullifiers",
   registrations: "medusa:registrations",
   badges: "medusa:badges",
+  tokenHolders: "medusa:token-holders",
 } as const;
+
+/** Redis field for a token-passport holder record, namespaced per partner. */
+export function tokenHolderField(partnerId: string, holderId: string): string {
+  return `${partnerId}::${holderId}`;
+}
+
+/** Redis key for a one-time ownership nonce (short TTL). */
+export function nonceKey(nonce: string): string {
+  return `medusa:evm-nonce:${nonce}`;
+}
 
 export function registrationField(
   campaignId: string,

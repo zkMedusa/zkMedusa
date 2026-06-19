@@ -24,6 +24,14 @@ const nextConfig: NextConfig = {
       };
     }
 
+    // wagmi's optional "tempo" connector does `import('accounts')`, an optional
+    // dependency we don't use. Alias it to false so webpack doesn't fail to
+    // resolve it (the connector's own try/catch handles the absence at runtime).
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      accounts: false,
+    };
+
     return config;
   },
 };
