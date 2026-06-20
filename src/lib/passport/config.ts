@@ -21,8 +21,8 @@ export const TIER_LABELS: Record<PassportTier, string> = {
 };
 
 export const PASSPORT_REQUIREMENTS = {
-  minWalletAgeDays: 180,
-  minTransactionCount: 50,
+  minWalletAgeDays: 90,
+  minTransactionCount: 20,
   volumeWindowDays: 90,
   tierVolumeThresholdsLamports: {
     bronze: 10 * LAMPORTS_PER_SOL,
