@@ -9,9 +9,9 @@ export default function ContractAddressBar({
 }) {
   return (
     <div className="bg-black w-full flex items-center justify-center py-3">
-      <p className="px-4 text-center font-['PerfectDOS'] text-[10px] md:text-xs uppercase text-white/90 tracking-wide">
-        <span className="text-white/60">CA:</span>{" "}
-        <span className="text-white select-all">{address}</span>
+      <p className="px-4 text-center font-['PerfectDOS'] text-[10px] md:text-xs text-white/90 tracking-wide">
+        <span className="uppercase text-white/60">CA:</span>{" "}
+        <span className="normal-case text-white select-all">{address}</span>
       </p>
     </div>
   );
