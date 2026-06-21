@@ -1,13 +1,7 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import BN from "bn.js";
-import { ICluster } from "@streamflow/common";
-import {
-  SolanaStakingClient,
-  deriveRewardEntryPDA,
-  type StakeEntry,
-} from "@streamflow/staking";
-import { getSolanaNetwork, getSolanaRpcUrl } from "@/lib/passport/config";
+import type { SolanaStakingClient, StakeEntry } from "@streamflow/staking";
 import { getMedusaMintAddress } from "@/lib/staking/config";
 import {
   getDefaultMedusaDecimals,
@@ -20,6 +14,10 @@ import {
   type StreamflowTierPool,
 } from "@/lib/staking/streamflowPools";
 import {
+  getStreamflowStakingClient,
+  loadStakingSdk,
+} from "@/lib/staking/streamflowSdk.server";
+import {
   STAKING_CACHE_KEYS,
   STAKING_CACHE_TTL,
   withStakingCache,
@@ -30,45 +28,19 @@ import type {
   StakingUserPosition,
 } from "@/lib/staking/types";
 
-let stakingClient: SolanaStakingClient | null = null;
 let mintDecimalsPromise: Promise<number> | null = null;
 
-function getStakingRpcUrl(): string {
-  return (
-    process.env.MEDUSA_STAKING_RPC_URL?.trim() ||
-    process.env.MEDUSA_BADGE_RPC_URL?.trim() ||
-    getSolanaRpcUrl()
-  );
-}
-
-function getCluster(): ICluster {
-  if (getSolanaNetwork() === "mainnet-beta") {
-    return ICluster.Mainnet;
-  }
-  return ICluster.Devnet;
-}
-
-function getClient(): SolanaStakingClient {
-  if (!stakingClient) {
-    stakingClient = new SolanaStakingClient({
-      clusterUrl: getStakingRpcUrl(),
-      cluster: getCluster(),
-    });
-  }
-  return stakingClient;
-}
-
-function getConnection(): Connection {
-  return getClient().connection;
+async function getConnection(): Promise<Connection> {
+  const client = await getStreamflowStakingClient();
+  return client.connection;
 }
 
 async function getMintDecimals(): Promise<number> {
   if (!mintDecimalsPromise) {
     mintDecimalsPromise = (async () => {
       const mint = getMedusaMintAddress();
-      const info = await getConnection().getParsedAccountInfo(
-        new PublicKey(mint),
-      );
+      const connection = await getConnection();
+      const info = await connection.getParsedAccountInfo(new PublicKey(mint));
       const parsed = info.value?.data;
       if (parsed && typeof parsed === "object" && "parsed" in parsed) {
         const decimals = (parsed as { parsed: { info: { decimals?: number } } })
@@ -107,7 +79,8 @@ function canUnstake(entry: StakeEntry): boolean {
 
 async function getTokenAccountRawAmount(address: string): Promise<bigint> {
   try {
-    const balance = await getConnection().getTokenAccountBalance(
+    const connection = await getConnection();
+    const balance = await connection.getTokenAccountBalance(
       new PublicKey(address),
     );
     return BigInt(balance.value.amount);
@@ -167,6 +140,7 @@ async function fetchDynamicRewardEntry(
   rewardPool: string,
   stakeEntry: PublicKey,
 ): Promise<DynamicRewardEntry | undefined> {
+  const { deriveRewardEntryPDA } = await loadStakingSdk();
   const rewardEntryPk = deriveRewardEntryPDA(
     client.programs.rewardPoolDynamicProgram.programId,
     new PublicKey(rewardPool),
@@ -213,7 +187,7 @@ async function buildTierPosition(
   wallet: string,
   decimals: number,
 ): Promise<StakingTierPosition[]> {
-  const client = getClient();
+  const client = await getStreamflowStakingClient();
   const entries = await client.searchStakeEntries({
     stakePool: new PublicKey(tier.stakePool),
     payer: new PublicKey(wallet),
@@ -320,7 +294,7 @@ async function fetchStakingGlobalStatsUncached(): Promise<StakingGlobalStats> {
     };
   }
 
-  const client = getClient();
+  const client = await getStreamflowStakingClient();
   const decimals = await getMintDecimals();
   const tiers = getStreamflowTierPools();
   let totalStakedRaw = BigInt(0);
@@ -368,10 +342,7 @@ async function fetchStakingGlobalStatsUncached(): Promise<StakingGlobalStats> {
           fundDelegate.period,
           fundDelegate.expiryTs,
         );
-        if (
-          tierNextDrip &&
-          (!nextDripAt || tierNextDrip < nextDripAt)
-        ) {
+        if (tierNextDrip && (!nextDripAt || tierNextDrip < nextDripAt)) {
           nextDripAt = tierNextDrip;
         }
       } catch (error) {
@@ -498,8 +469,9 @@ export async function fetchStakingUserPosition(
 }
 
 export async function getRewardPoolNonce(rewardPool: string): Promise<number> {
+  const client = await getStreamflowStakingClient();
   const account =
-    await getClient().programs.rewardPoolDynamicProgram.account.rewardPool.fetch(
+    await client.programs.rewardPoolDynamicProgram.account.rewardPool.fetch(
       rewardPool,
     );
   return account.nonce;
@@ -509,7 +481,8 @@ export async function findAvailableStakeNonce(
   stakePool: string,
   wallet: string,
 ): Promise<number> {
-  const entries = await getClient().searchStakeEntries({
+  const client = await getStreamflowStakingClient();
+  const entries = await client.searchStakeEntries({
     stakePool: new PublicKey(stakePool),
     payer: new PublicKey(wallet),
   });

@@ -14,10 +14,11 @@ export async function GET() {
     });
   } catch (error) {
     console.error("[staking/stats]", error);
+    const detail = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
       {
         error: "Failed to load staking stats.",
-        detail: error instanceof Error ? error.message : String(error),
+        detail,
       },
       { status: 500 },
     );

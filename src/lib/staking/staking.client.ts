@@ -4,9 +4,15 @@ import type {
 } from "@/lib/staking/types";
 
 async function readJson<T>(response: Response): Promise<T> {
-  const payload = (await response.json()) as T & { error?: string };
+  const payload = (await response.json()) as T & {
+    error?: string;
+    detail?: string;
+  };
   if (!response.ok) {
-    throw new Error(payload.error ?? "Request failed.");
+    const message = payload.detail
+      ? `${payload.error ?? "Request failed."} (${payload.detail})`
+      : payload.error ?? "Request failed.";
+    throw new Error(message);
   }
   return payload;
 }

@@ -2,12 +2,20 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ["@aztec/bb.js", "@streamflow/staking", "@streamflow/common"],
+  serverExternalPackages: ["@aztec/bb.js"],
   outputFileTracingIncludes: {
     "/api/passport/issue": [
       "./node_modules/@aztec/bb.js/dest/node/barretenberg_wasm/barretenberg-threads.wasm.gz",
       "./node_modules/@aztec/bb.js/dest/node-cjs/barretenberg_wasm/barretenberg-threads.wasm.gz",
       "./src/lib/passport/wasm/barretenberg-threads.wasm.gz",
+    ],
+    "/api/staking/stats": [
+      "./node_modules/@streamflow/staking/dist/**/*",
+      "./node_modules/@streamflow/common/dist/**/*",
+    ],
+    "/api/staking/position": [
+      "./node_modules/@streamflow/staking/dist/**/*",
+      "./node_modules/@streamflow/common/dist/**/*",
     ],
   },
   webpack: (config, { isServer }) => {
