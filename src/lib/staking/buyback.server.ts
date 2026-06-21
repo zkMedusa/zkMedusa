@@ -230,6 +230,10 @@ async function distributeMedusaToTopUps({
 export interface RunBuybackOptions {
   dryRun?: boolean;
   force?: boolean;
+  /** Skip Pump.fun dev-fee claim; swap + distribute from existing wallet SOL. */
+  skipPumpClaim?: boolean;
+  /** Skip passport USDC buyback slice (local recovery runs). */
+  skipPassportUsdc?: boolean;
 }
 
 export async function runBuyback(
@@ -237,6 +241,8 @@ export async function runBuyback(
 ): Promise<BuybackRunRecord> {
   const dryRun = options.dryRun ?? false;
   const force = options.force ?? false;
+  const skipPumpClaim = options.skipPumpClaim ?? false;
+  const skipPassportUsdc = options.skipPassportUsdc ?? false;
   const ranAt = new Date().toISOString();
   const signatures: string[] = [];
   const errors: string[] = [];
@@ -333,12 +339,19 @@ export async function runBuyback(
     );
   }
 
-  const pumpClaim = await claimPumpCreatorFees({
-    connection,
-    authority,
-    mint: medusaMint,
-    dryRun,
-  });
+  const pumpClaim = skipPumpClaim
+    ? {
+        claimableLamports: BigInt(0),
+        claimedLamports: BigInt(0),
+        usesSharingConfig: false,
+        skipped: "Pump claim skipped (swap-only run).",
+      }
+    : await claimPumpCreatorFees({
+        connection,
+        authority,
+        mint: medusaMint,
+        dryRun,
+      });
   if (pumpClaim.signature) {
     signatures.push(pumpClaim.signature);
   }
@@ -378,7 +391,7 @@ export async function runBuyback(
   let passportUsdcToSolMicro = BigInt(0);
   let authorityUsdcAta: PublicKey | null = null;
 
-  if (treasuryWallet) {
+  if (treasuryWallet && !skipPassportUsdc) {
     const treasuryUsdcAta = getAssociatedTokenAddress(
       treasuryWallet,
       usdcMint,

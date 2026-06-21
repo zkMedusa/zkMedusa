@@ -21,7 +21,9 @@
     "staking:pools": "node scripts/check-streamflow-pools.mjs",
     "staking:verify": "node scripts/verify-streamflow-tiers.mjs",
     "buyback:run": "node scripts/run-buyback.mjs",
-    "buyback:live": "node scripts/run-buyback.mjs --live"
+    "buyback:live": "node scripts/run-buyback.mjs --live",
+    "buyback:swap-only": "npx tsx scripts/run-buyback-swap-only.ts",
+    "buyback:swap-only:live": "npx tsx scripts/run-buyback-swap-only.ts --live"
   },
   "dependencies": {
     "@aztec/bb.js": "5.0.0-nightly.20260522",
