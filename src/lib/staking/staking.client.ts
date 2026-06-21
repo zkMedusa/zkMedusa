@@ -33,3 +33,28 @@ export async function fetchStakingPosition(
   );
   return readJson<StakingUserPosition>(response);
 }
+
+/** Fire-and-forget Telegram alert after a confirmed stake (server verifies on-chain). */
+export async function notifyStakeSuccess(params: {
+  signature: string;
+  wallet: string;
+  tierDays: number;
+  amount: string;
+}): Promise<void> {
+  try {
+    const response = await fetch("/api/staking/notify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      console.error("[staking/notify]", payload?.error ?? response.status);
+    }
+  } catch (error) {
+    console.error("[staking/notify]", error);
+  }
+}

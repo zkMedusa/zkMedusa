@@ -21,6 +21,7 @@ import {
 import {
   fetchStakingPosition,
   fetchStakingStats,
+  notifyStakeSuccess,
 } from "@/lib/staking/staking.client";
 import {
   fetchMedusaWalletBalance,
@@ -236,6 +237,8 @@ export default function StakingFlow() {
     setBusyAction("stake");
     toast.info("Confirm the stake transaction in your wallet…");
 
+    const confirmedAmount = stakeAmount;
+
     try {
       const { stakeMedusa } = await import(
         "@/lib/staking/streamflowActions.client"
@@ -250,6 +253,12 @@ export default function StakingFlow() {
       });
       setStakeAmount("");
       toast.success(`Staked successfully. Tx: ${signature.slice(0, 8)}…`);
+      void notifyStakeSuccess({
+        signature,
+        wallet: publicKey.toBase58(),
+        tierDays: selectedLockDays,
+        amount: confirmedAmount,
+      });
       await Promise.all([
         refreshStats(),
         refreshPosition(),

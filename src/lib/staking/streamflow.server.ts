@@ -36,6 +36,11 @@ async function getConnection(): Promise<Connection> {
   return client.connection;
 }
 
+/** Shared RPC connection for staking server modules (notify, stats, etc.). */
+export async function getStreamflowStakingConnection(): Promise<Connection> {
+  return getConnection();
+}
+
 async function getMintDecimals(): Promise<number> {
   if (!mintDecimalsPromise) {
     mintDecimalsPromise = (async () => {
