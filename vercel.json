@@ -12,17 +12,24 @@
     "app/api/staking/cron/buyback/route.ts": {
       "maxDuration": 300
     },
+    "app/api/staking/cron/warm/route.ts": {
+      "maxDuration": 300
+    },
     "app/api/staking/stats/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "app/api/staking/position/route.ts": {
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "crons": [
     {
       "path": "/api/partner/cron/refresh",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/staking/cron/warm",
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/staking/cron/buyback",

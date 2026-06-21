@@ -2,14 +2,14 @@ import { NextResponse } from "next/server";
 import { fetchStakingGlobalStats } from "@/lib/staking/streamflow.server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET() {
   try {
     const stats = await fetchStakingGlobalStats();
     return NextResponse.json(stats, {
       headers: {
-        "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60",
+        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300",
       },
     });
   } catch (error) {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { fetchStakingUserPosition } from "@/lib/staking/streamflow.server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const wallet = new URL(request.url).searchParams.get("wallet")?.trim();
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     }
     return NextResponse.json(position, {
       headers: {
-        "Cache-Control": "public, s-maxage=15, stale-while-revalidate=30",
+        "Cache-Control": "public, s-maxage=90, stale-while-revalidate=180",
       },
     });
   } catch (error) {

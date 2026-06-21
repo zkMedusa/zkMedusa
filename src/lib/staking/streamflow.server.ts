@@ -20,6 +20,7 @@ import {
 import {
   STAKING_CACHE_KEYS,
   STAKING_CACHE_TTL,
+  readStakingCache,
   withStakingCache,
 } from "@/lib/staking/stakingCache.server";
 import type {
@@ -186,8 +187,8 @@ async function buildTierPosition(
   tier: StreamflowTierPool,
   wallet: string,
   decimals: number,
+  client: SolanaStakingClient,
 ): Promise<StakingTierPosition[]> {
-  const client = await getStreamflowStakingClient();
   const entries = await client.searchStakeEntries({
     stakePool: new PublicKey(tier.stakePool),
     payer: new PublicKey(wallet),
@@ -200,35 +201,34 @@ async function buildTierPosition(
     return [];
   }
 
-  const stakePool = await client.getStakePool(tier.stakePool);
-  const rewardPoolAccount =
-    await client.programs.rewardPoolDynamicProgram.account.rewardPool.fetch(
+  const [stakePool, rewardPoolAccount] = await Promise.all([
+    client.getStakePool(tier.stakePool),
+    client.programs.rewardPoolDynamicProgram.account.rewardPool.fetch(
       tier.rewardPool,
-    );
+    ),
+  ]);
 
   const totalEffectiveStake = BigInt(stakePool.totalEffectiveStake.toString());
-  const positions: StakingTierPosition[] = [];
+  const rewardEntries = await Promise.all(
+    activeEntries.map((entry) =>
+      fetchDynamicRewardEntry(client, tier.rewardPool, entry.publicKey),
+    ),
+  );
 
-  for (const entry of activeEntries) {
-    const rewardEntry = await fetchDynamicRewardEntry(
-      client,
-      tier.rewardPool,
-      entry.publicKey,
-    );
-
+  return activeEntries.map((entry, index) => {
+    const rewardEntry = rewardEntries[index];
     const claimableRaw = calcDynamicClaimable(
       entry.account,
       rewardEntry,
       rewardPoolAccount,
     );
-
     const effectiveAmount = BigInt(entry.account.effectiveAmount.toString());
     const weightSharePercent =
       totalEffectiveStake > BigInt(0)
         ? Number((effectiveAmount * BigInt(10000)) / totalEffectiveStake) / 100
         : 0;
 
-    positions.push({
+    return {
       tierDays: tier.days,
       tierLabel: tier.label,
       stakePool: tier.stakePool,
@@ -245,38 +245,114 @@ async function buildTierPosition(
       canUnstake: canUnstake(entry.account),
       stakeNonce: entry.account.nonce,
       rewardPoolNonce: rewardPoolAccount.nonce,
-    });
-  }
-
-  return positions;
+    };
+  });
 }
 
-async function fetchActiveStakerCount(
-  client: SolanaStakingClient,
-  tiers: StreamflowTierPool[],
-): Promise<number> {
+async function readCachedActiveStakerCount(): Promise<number> {
+  const cached = await readStakingCache<number>(STAKING_CACHE_KEYS.activeStakers);
+  return typeof cached === "number" && cached >= 0 ? cached : 0;
+}
+
+async function refreshActiveStakerCount(): Promise<number> {
   return withStakingCache(
     STAKING_CACHE_KEYS.activeStakers,
     STAKING_CACHE_TTL.activeStakersSeconds,
     async () => {
+      const client = await getStreamflowStakingClient();
+      const tiers = getStreamflowTierPools();
       const uniqueStakers = new Set<string>();
-      for (const tier of tiers) {
-        try {
-          const entries = await client.searchStakeEntries({
-            stakePool: new PublicKey(tier.stakePool),
-          });
-          for (const entry of entries) {
-            if (isActiveStakeEntry(entry.account)) {
-              uniqueStakers.add(entry.account.payer.toBase58());
-            }
+
+      const entryGroups = await Promise.all(
+        tiers.map(async (tier) => {
+          try {
+            return await client.searchStakeEntries({
+              stakePool: new PublicKey(tier.stakePool),
+            });
+          } catch (error) {
+            console.error(`[staking/stats] active stakers ${tier.days}d`, error);
+            return [];
           }
-        } catch (error) {
-          console.error(`[staking/stats] active stakers ${tier.days}d`, error);
+        }),
+      );
+
+      for (const entries of entryGroups) {
+        for (const entry of entries) {
+          if (isActiveStakeEntry(entry.account)) {
+            uniqueStakers.add(entry.account.payer.toBase58());
+          }
         }
       }
+
       return uniqueStakers.size;
     },
   );
+}
+
+export async function warmStakingCaches(): Promise<StakingGlobalStats> {
+  await refreshActiveStakerCount();
+  return withStakingCache(
+    STAKING_CACHE_KEYS.stats,
+    STAKING_CACHE_TTL.statsSeconds,
+    fetchStakingGlobalStatsUncached,
+  );
+}
+
+interface TierStatsSlice {
+  totalStakedRaw: bigint;
+  pendingRewardPoolRaw: bigint;
+  totalBuybacksRaw: bigint;
+  totalClaimedRaw: bigint;
+  lastDripAt: string | null;
+  nextDripAt: string | null;
+}
+
+async function fetchTierStatsSlice(
+  client: SolanaStakingClient,
+  tier: StreamflowTierPool,
+): Promise<TierStatsSlice> {
+  const [pool, topUpRaw, rewardPoolAccount] = await Promise.all([
+    client.getStakePool(tier.stakePool),
+    getTopUpBalanceRaw(tier.topUpAddress),
+    client.programs.rewardPoolDynamicProgram.account.rewardPool.fetch(
+      tier.rewardPool,
+    ),
+  ]);
+
+  const claimedRaw = BigInt(rewardPoolAccount.claimedAmount.toString());
+  const vaultRaw = await getTokenAccountRawAmount(
+    rewardPoolAccount.vault.toBase58(),
+  );
+
+  let lastDripAt: string | null = null;
+  let nextDripAt: string | null = null;
+
+  try {
+    const fundDelegate =
+      await client.programs.rewardPoolDynamicProgram.account.fundDelegate.fetch(
+        new PublicKey(tier.fundDelegate),
+      );
+    const lastFundSeconds = bnToSeconds(fundDelegate.lastFundTs);
+    if (lastFundSeconds > 0) {
+      lastDripAt = new Date(lastFundSeconds * 1000).toISOString();
+    }
+    nextDripAt = deriveNextFundDrip(
+      fundDelegate.lastFundTs,
+      fundDelegate.period,
+      fundDelegate.expiryTs,
+    );
+  } catch (error) {
+    console.error(`[staking/stats] fund delegate ${tier.days}d`, error);
+  }
+
+  return {
+    totalStakedRaw: BigInt(pool.totalStake.toString()),
+    pendingRewardPoolRaw: topUpRaw,
+    totalBuybacksRaw: topUpRaw + vaultRaw + claimedRaw,
+    totalClaimedRaw: claimedRaw,
+    lastDripAt,
+    nextDripAt,
+  };
 }
 
 async function fetchStakingGlobalStatsUncached(): Promise<StakingGlobalStats> {
@@ -297,6 +373,18 @@ async function fetchStakingGlobalStatsUncached(): Promise<StakingGlobalStats> {
   const client = await getStreamflowStakingClient();
   const decimals = await getMintDecimals();
   const tiers = getStreamflowTierPools();
+
+  const tierSlices = await Promise.all(
+    tiers.map(async (tier) => {
+      try {
+        return await fetchTierStatsSlice(client, tier);
+      } catch (error) {
+        console.error(`[staking/stats] tier ${tier.days}d`, error);
+        return null;
+      }
+    }),
+  );
+
   let totalStakedRaw = BigInt(0);
   let pendingRewardPoolRaw = BigInt(0);
   let totalBuybacksRaw = BigInt(0);
@@ -304,56 +392,23 @@ async function fetchStakingGlobalStatsUncached(): Promise<StakingGlobalStats> {
   let lastDripAt: string | null = null;
   let nextDripAt: string | null = null;
 
-  for (const tier of tiers) {
-    try {
-      const pool = await client.getStakePool(tier.stakePool);
-      totalStakedRaw += BigInt(pool.totalStake.toString());
-
-      const topUpRaw = await getTopUpBalanceRaw(tier.topUpAddress);
-      pendingRewardPoolRaw += topUpRaw;
-
-      const rewardPoolAccount =
-        await client.programs.rewardPoolDynamicProgram.account.rewardPool.fetch(
-          tier.rewardPool,
-        );
-      const claimedRaw = BigInt(rewardPoolAccount.claimedAmount.toString());
-      const vaultRaw = await getTokenAccountRawAmount(
-        rewardPoolAccount.vault.toBase58(),
-      );
-
-      totalClaimedRaw += claimedRaw;
-      totalBuybacksRaw += topUpRaw + vaultRaw + claimedRaw;
-
-      try {
-        const fundDelegate =
-          await client.programs.rewardPoolDynamicProgram.account.fundDelegate.fetch(
-            new PublicKey(tier.fundDelegate),
-          );
-        const lastFundSeconds = bnToSeconds(fundDelegate.lastFundTs);
-        if (lastFundSeconds > 0) {
-          const dripAt = new Date(lastFundSeconds * 1000).toISOString();
-          if (!lastDripAt || dripAt > lastDripAt) {
-            lastDripAt = dripAt;
-          }
-        }
-
-        const tierNextDrip = deriveNextFundDrip(
-          fundDelegate.lastFundTs,
-          fundDelegate.period,
-          fundDelegate.expiryTs,
-        );
-        if (tierNextDrip && (!nextDripAt || tierNextDrip < nextDripAt)) {
-          nextDripAt = tierNextDrip;
-        }
-      } catch (error) {
-        console.error(`[staking/stats] fund delegate ${tier.days}d`, error);
-      }
-    } catch (error) {
-      console.error(`[staking/stats] tier ${tier.days}d`, error);
+  for (const slice of tierSlices) {
+    if (!slice) {
+      continue;
+    }
+    totalStakedRaw += slice.totalStakedRaw;
+    pendingRewardPoolRaw += slice.pendingRewardPoolRaw;
+    totalBuybacksRaw += slice.totalBuybacksRaw;
+    totalClaimedRaw += slice.totalClaimedRaw;
+    if (slice.lastDripAt && (!lastDripAt || slice.lastDripAt > lastDripAt)) {
+      lastDripAt = slice.lastDripAt;
+    }
+    if (slice.nextDripAt && (!nextDripAt || slice.nextDripAt < nextDripAt)) {
+      nextDripAt = slice.nextDripAt;
     }
   }
 
-  const activeStakers = await fetchActiveStakerCount(client, tiers);
+  const activeStakers = await readCachedActiveStakerCount();
 
   return {
     activeStakers,
@@ -394,16 +449,18 @@ async function fetchStakingUserPositionUncached(
 
   const decimals = await getMintDecimals();
   const tiers = getStreamflowTierPools();
-  const positions: StakingTierPosition[] = [];
-
-  for (const tier of tiers) {
-    try {
-      const tierPositions = await buildTierPosition(tier, wallet, decimals);
-      positions.push(...tierPositions);
-    } catch (error) {
-      console.error(`[staking/position] tier ${tier.days}d`, error);
-    }
-  }
+  const client = await getStreamflowStakingClient();
+  const tierResults = await Promise.all(
+    tiers.map(async (tier) => {
+      try {
+        return await buildTierPosition(tier, wallet, decimals, client);
+      } catch (error) {
+        console.error(`[staking/position] tier ${tier.days}d`, error);
+        return [] as StakingTierPosition[];
+      }
+    }),
+  );
+  const positions = tierResults.flat();
 
   if (positions.length === 0) {
     return {
