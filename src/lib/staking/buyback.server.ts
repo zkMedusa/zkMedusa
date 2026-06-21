@@ -53,7 +53,7 @@ import { claimPumpCreatorFees } from "@/lib/staking/pumpfun.server";
 import type { BuybackRunRecord, BuybackTierTransfer } from "@/lib/staking/types";
 
 function percentOf(value: bigint, percent: number): bigint {
-  return (value * BigInt(Math.round(percent * 100))) / 10_000n;
+  return (value * BigInt(Math.round(percent * 100))) / BigInt(10_000);
 }
 
 async function confirmSignatureHttp(
