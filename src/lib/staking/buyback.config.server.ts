@@ -1,4 +1,4 @@
-import { Keypair, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
 import { getSolanaNetwork, getSolanaRpcUrl } from "@/lib/passport/config";
 
@@ -89,12 +89,33 @@ export function getSolReserveLamports(): bigint {
   return BigInt(Math.floor(reserveSol * 1_000_000_000));
 }
 
+/**
+ * HTTP RPC for buyback txs (pump claim, Jupiter, top-ups).
+ * Uses QuikNode / wallet RPC — NOT MEDUSA_STAKING_RPC_URL (OOBE is HTTP-only and
+ * breaks web3.js websocket subscriptions with 404s).
+ */
 export function getBuybackRpcUrl(): string {
   return (
-    process.env.MEDUSA_STAKING_RPC_URL?.trim() ||
+    process.env.MEDUSA_BUYBACK_RPC_URL?.trim() ||
+    process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() ||
     process.env.MEDUSA_BADGE_RPC_URL?.trim() ||
     getSolanaRpcUrl()
   );
+}
+
+/** Optional explicit WSS endpoint when it differs from the HTTP URL. */
+export function getBuybackWsUrl(): string | undefined {
+  return process.env.MEDUSA_BUYBACK_WS_URL?.trim() || undefined;
+}
+
+export function createBuybackConnection(): Connection {
+  const httpUrl = getBuybackRpcUrl();
+  const wsUrl = getBuybackWsUrl();
+
+  return new Connection(httpUrl, {
+    commitment: "confirmed",
+    ...(wsUrl ? { wsEndpoint: wsUrl } : {}),
+  });
 }
 
 export function getPumpClaimMinLamports(): bigint {

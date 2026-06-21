@@ -13,7 +13,7 @@ import {
   createTransferCheckedInstruction,
   getAssociatedTokenAddressSync,
 } from "@solana/spl-token";
-import { getSolanaNetwork, getSolanaRpcUrl } from "@/lib/passport/config";
+import { getSolanaNetwork } from "@/lib/passport/config";
 import {
   getAssociatedTokenAddress,
   getUsdcMintAddress,
@@ -30,7 +30,7 @@ import {
   getBuybackAuthorityKeypair,
   getBuybackMinUsdc,
   getBuybackMinSol,
-  getBuybackRpcUrl,
+  createBuybackConnection,
   getDevWalletAddress,
   getOpsTreasuryAddress,
   getPassportTreasuryAddress,
@@ -316,8 +316,7 @@ export async function runBuyback(
     return record;
   }
 
-  const rpcUrl = getBuybackRpcUrl() || getSolanaRpcUrl();
-  const connection = new Connection(rpcUrl, "confirmed");
+  const connection = createBuybackConnection();
   const devWallet = getDevWalletAddress(authority.publicKey);
   const treasuryWallet = getPassportTreasuryAddress();
   const opsTreasury = getOpsTreasuryAddress();

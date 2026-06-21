@@ -7,6 +7,7 @@ import {
 import {
   getBuybackMinSol,
   getBuybackMinUsdc,
+  getBuybackRpcUrl,
   getPumpClaimMinLamports,
   getSolReserveLamports,
   isBuybackConfigured,
@@ -23,6 +24,17 @@ function authorizeStatus(request: Request): boolean {
   }
   const auth = request.headers.get("authorization");
   return auth === `Bearer ${secret}`;
+}
+
+function redactRpcUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    parsed.search = parsed.search ? "?…" : "";
+    parsed.pathname = parsed.pathname.replace(/\/[a-f0-9]{16,}/i, "/…");
+    return parsed.toString();
+  } catch {
+    return "invalid-url";
+  }
 }
 
 export async function GET(request: Request) {
@@ -45,6 +57,9 @@ export async function GET(request: Request) {
       minBuybackUsdc: getBuybackMinUsdc(),
       minPumpClaimSol: Number(getPumpClaimMinLamports()) / 1e9,
       solReserve: Number(getSolReserveLamports()) / 1e9,
+    },
+    rpc: {
+      buybackHttp: redactRpcUrl(getBuybackRpcUrl()),
     },
     lastRun,
     lastSuccess,
