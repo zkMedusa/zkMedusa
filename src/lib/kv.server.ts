@@ -26,6 +26,8 @@ export const KV_KEYS = {
   registrations: "medusa:registrations",
   badges: "medusa:badges",
   tokenHolders: "medusa:token-holders",
+  buybackLastRun: "medusa:buyback:last-run",
+  buybackHistory: "medusa:buyback:history",
 } as const;
 
 /** Redis field for a token-passport holder record, namespaced per partner. */

@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ["@aztec/bb.js"],
+  serverExternalPackages: ["@aztec/bb.js", "@streamflow/staking", "@streamflow/common"],
   outputFileTracingIncludes: {
     "/api/passport/issue": [
       "./node_modules/@aztec/bb.js/dest/node/barretenberg_wasm/barretenberg-threads.wasm.gz",

@@ -8,12 +8,19 @@
   "functions": {
     "app/api/passport/issue/route.ts": {
       "maxDuration": 300
+    },
+    "app/api/staking/cron/buyback/route.ts": {
+      "maxDuration": 300
     }
   },
   "crons": [
     {
       "path": "/api/partner/cron/refresh",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/staking/cron/buyback",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

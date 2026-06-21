@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { ToastProvider } from "@/components/ui/Toast";
 
 const SolanaProvider = dynamic(() => import("@/providers/SolanaProvider"), {
   ssr: false,
@@ -11,5 +12,9 @@ export default function AppProviders({
 }: {
   children: React.ReactNode;
 }) {
-  return <SolanaProvider>{children}</SolanaProvider>;
+  return (
+    <ToastProvider>
+      <SolanaProvider>{children}</SolanaProvider>
+    </ToastProvider>
+  );
 }

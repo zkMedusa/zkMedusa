@@ -17,7 +17,11 @@
     "postinstall": "node scripts/copy-noir-wasm.mjs && node scripts/copy-bb-wasm.mjs",
     "compile:circuit": "node scripts/compile-circuit.mjs",
     "passport:keys": "node scripts/generate-issuer-keys.mjs",
-    "badge:collection": "node scripts/create-badge-collection.mjs"
+    "badge:collection": "node scripts/create-badge-collection.mjs",
+    "staking:pools": "node scripts/check-streamflow-pools.mjs",
+    "staking:verify": "node scripts/verify-streamflow-tiers.mjs",
+    "buyback:run": "node scripts/run-buyback.mjs",
+    "buyback:live": "node scripts/run-buyback.mjs --live"
   },
   "dependencies": {
     "@aztec/bb.js": "5.0.0-nightly.20260522",
@@ -30,15 +34,20 @@
     "@noir-lang/noir_js": "^1.0.0-beta.22",
     "@noir-lang/noir_wasm": "^1.0.0-beta.22",
     "@noir-lang/noirc_abi": "^1.0.0-beta.22",
+    "@pump-fun/pump-sdk": "^1.36.0",
+    "@pump-fun/pump-swap-sdk": "^1.17.0",
     "@solana/kit": "^6.9.0",
+    "@solana/spl-token": "^0.4.14",
     "@solana/sysvars": "^6.9.0",
     "@solana/wallet-adapter-base": "^0.9.27",
     "@solana/wallet-adapter-phantom": "^0.9.29",
     "@solana/wallet-adapter-react": "^0.15.39",
     "@solana/wallet-adapter-react-ui": "^0.9.39",
     "@solana/web3.js": "^1.98.4",
+    "@streamflow/staking": "^12.4.0",
     "@tanstack/react-query": "^5.101.0",
     "@upstash/redis": "^1.38.0",
+    "bn.js": "^5.2.2",
     "bs58": "^6.0.0",
     "html-to-image": "^1.11.13",
     "next": "^15.1.0",
@@ -51,6 +60,7 @@
     "wagmi": "^3.6.17"
   },
   "devDependencies": {
+    "@types/bn.js": "^5.1.6",
     "@types/node": "^22.10.0",
     "@types/pako": "^2.0.4",
     "@types/react": "^19.0.0",
