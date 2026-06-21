@@ -71,8 +71,8 @@ Interactive docs: [zkmedusa.com/docs#claim-wallet](https://www.zkmedusa.com/docs
 
 All tiers require:
 
-- Wallet age ≥ **180 days**
-- Transaction count ≥ **50**
+- Wallet age ≥ **90 days**
+- Transaction count ≥ **20**
 
 Volume is measured over a **90-day** window:
 
