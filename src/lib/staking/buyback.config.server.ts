@@ -1,6 +1,6 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import bs58 from "bs58";
-import { getSolanaNetwork } from "@/lib/passport/config";
+import { getSolanaNetwork, getSolanaRpcUrl } from "@/lib/passport/config";
 
 export function decodeSecretKey(secret: string): Uint8Array {
   const trimmed = secret.trim();
@@ -82,9 +82,19 @@ export function getBuybackSlippageBps(): number {
   return Number.isFinite(value) && value > 0 ? value : 100;
 }
 
+/** SOL left on the buyback wallet for claim/swap tx fees (separate from min buyback). */
 export function getSolReserveLamports(): bigint {
-  const minSol = getBuybackMinSol();
-  return BigInt(Math.floor(minSol * 1_000_000_000));
+  const value = Number(process.env.MEDUSA_BUYBACK_SOL_RESERVE ?? "0.02");
+  const reserveSol = Number.isFinite(value) && value >= 0 ? value : 0.02;
+  return BigInt(Math.floor(reserveSol * 1_000_000_000));
+}
+
+export function getBuybackRpcUrl(): string {
+  return (
+    process.env.MEDUSA_STAKING_RPC_URL?.trim() ||
+    process.env.MEDUSA_BADGE_RPC_URL?.trim() ||
+    getSolanaRpcUrl()
+  );
 }
 
 export function getPumpClaimMinLamports(): bigint {

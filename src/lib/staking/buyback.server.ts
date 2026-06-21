@@ -30,6 +30,7 @@ import {
   getBuybackAuthorityKeypair,
   getBuybackMinUsdc,
   getBuybackMinSol,
+  getBuybackRpcUrl,
   getDevWalletAddress,
   getOpsTreasuryAddress,
   getPassportTreasuryAddress,
@@ -40,7 +41,7 @@ import {
   isBuybackEnabled,
   isMainnetBuybackNetwork,
 } from "@/lib/staking/buyback.config.server";
-import { saveBuybackRun, getLastBuybackRun } from "@/lib/staking/buybackStore.server";
+import { saveBuybackRun, getLastSuccessfulBuybackRun } from "@/lib/staking/buybackStore.server";
 import {
   executeJupiterSwap,
   getJupiterQuote,
@@ -289,16 +290,16 @@ export async function runBuyback(
   }
 
   if (!force && !dryRun) {
-    const lastRun = await getLastBuybackRun();
-    if (lastRun?.ranAt) {
-      const elapsedMs = Date.now() - new Date(lastRun.ranAt).getTime();
+    const lastSuccess = await getLastSuccessfulBuybackRun();
+    if (lastSuccess?.ranAt) {
+      const elapsedMs = Date.now() - new Date(lastSuccess.ranAt).getTime();
       const minIntervalMs = DRIP_INTERVAL_MINUTES * 60 * 1000;
       if (elapsedMs < minIntervalMs) {
         const record = baseRecord({
-          skipped: `Last run was ${Math.round(elapsedMs / 60000)} min ago; interval is ${DRIP_INTERVAL_MINUTES} min.`,
-          authority: lastRun.authority,
-          devWallet: lastRun.devWallet,
-          treasuryWallet: lastRun.treasuryWallet,
+          skipped: `Last successful buyback was ${Math.round(elapsedMs / 60000)} min ago; interval is ${DRIP_INTERVAL_MINUTES} min.`,
+          authority: lastSuccess.authority,
+          devWallet: lastSuccess.devWallet,
+          treasuryWallet: lastSuccess.treasuryWallet,
         });
         await saveBuybackRun(record);
         return record;
@@ -315,7 +316,8 @@ export async function runBuyback(
     return record;
   }
 
-  const connection = new Connection(getSolanaRpcUrl(), "confirmed");
+  const rpcUrl = getBuybackRpcUrl() || getSolanaRpcUrl();
+  const connection = new Connection(rpcUrl, "confirmed");
   const devWallet = getDevWalletAddress(authority.publicKey);
   const treasuryWallet = getPassportTreasuryAddress();
   const opsTreasury = getOpsTreasuryAddress();
@@ -345,16 +347,15 @@ export async function runBuyback(
     errors.push(`Pump fee claim: ${pumpClaim.error}`);
   }
 
-  const solOwner = devWallet.equals(authority.publicKey)
-    ? authority.publicKey
-    : authority.publicKey;
+  const solOwner = devWallet;
   let availableSol =
     (await getSolBalanceLamports(connection, solOwner)) - reserveLamports;
-  if (
-    dryRun &&
-    pumpClaim.claimableLamports >= getPumpClaimMinLamports()
-  ) {
+  if (dryRun && pumpClaim.claimableLamports >= getPumpClaimMinLamports()) {
     availableSol += pumpClaim.claimableLamports;
+  } else if (pumpClaim.claimedLamports > BigInt(0)) {
+    // Re-read after an on-chain claim so the swap slice uses fresh balance.
+    availableSol =
+      (await getSolBalanceLamports(connection, solOwner)) - reserveLamports;
   }
 
   const pumpClaimFields = {
@@ -420,8 +421,18 @@ export async function runBuyback(
   const hasPassportBuyback = passportUsdcBuybackMicro >= minUsdcMicro;
 
   if (!hasPumpBuyback && !hasPassportBuyback) {
+    const minSol = getBuybackMinSol();
+    const minClaimSol = Number(getPumpClaimMinLamports()) / 1e9;
     const record = baseRecord({
-      skipped: "No buyback balances above configured minimums.",
+      skipped: [
+        "No buyback balances above configured minimums.",
+        `SOL buyback slice ${(Number(pumpSolBuybackLamports) / 1e9).toFixed(4)} (min ${minSol}).`,
+        `Pump claimable ${(Number(pumpClaim.claimableLamports) / 1e9).toFixed(4)} SOL (claim min ${minClaimSol}).`,
+        `Wallet ${solOwner.toBase58()} balance after reserve ${(Number(availableSol) / 1e9).toFixed(4)} SOL.`,
+        pumpClaim.skipped ? `Pump: ${pumpClaim.skipped}` : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
       authority: authority.publicKey.toBase58(),
       devWallet: devWallet.toBase58(),
       treasuryWallet: treasuryWallet?.toBase58() ?? null,

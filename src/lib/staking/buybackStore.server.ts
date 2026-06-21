@@ -11,6 +11,12 @@ export async function getLastBuybackRun(): Promise<BuybackRunRecord | null> {
   return (await redis.get<BuybackRunRecord>(KV_KEYS.buybackLastRun)) ?? null;
 }
 
+/** Last run that actually swapped and distributed MEDUSA (used for drip interval). */
+export async function getLastSuccessfulBuybackRun(): Promise<BuybackRunRecord | null> {
+  const history = await listBuybackHistory(50);
+  return history.find((record) => record.ok && !record.skipped) ?? null;
+}
+
 export async function saveBuybackRun(record: BuybackRunRecord): Promise<void> {
   const redis = getRedis();
   if (!redis) {
