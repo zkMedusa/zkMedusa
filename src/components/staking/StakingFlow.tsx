@@ -157,12 +157,11 @@ export default function StakingFlow() {
   }, [publicKey]);
 
   useEffect(() => {
-    void refreshStats();
-  }, [refreshStats]);
-
-  useEffect(() => {
-    void refreshPosition();
-  }, [refreshPosition]);
+    void (async () => {
+      await refreshStats();
+      await refreshPosition();
+    })();
+  }, [refreshStats, refreshPosition]);
 
   const refreshWalletBalance = useCallback(async () => {
     if (!publicKey) {

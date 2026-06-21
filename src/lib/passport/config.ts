@@ -53,8 +53,23 @@ export function getPublicInputs(currentTimestamp: number) {
 }
 
 export function getSolanaNetwork(): "devnet" | "mainnet-beta" {
-  const network = process.env.NEXT_PUBLIC_SOLANA_NETWORK;
-  return network === "mainnet-beta" ? "mainnet-beta" : "devnet";
+  const network = process.env.NEXT_PUBLIC_SOLANA_NETWORK?.trim();
+  if (network === "mainnet-beta") {
+    return "mainnet-beta";
+  }
+  if (network === "devnet") {
+    return "devnet";
+  }
+
+  const rpc = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.toLowerCase() ?? "";
+  if (rpc.includes("devnet")) {
+    return "devnet";
+  }
+  if (rpc.includes("mainnet")) {
+    return "mainnet-beta";
+  }
+
+  return "devnet";
 }
 
 export function getSolanaRpcUrl(): string {

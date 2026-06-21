@@ -19,6 +19,11 @@ import {
   isStreamflowStakingConfigured,
   type StreamflowTierPool,
 } from "@/lib/staking/streamflowPools";
+import {
+  STAKING_CACHE_KEYS,
+  STAKING_CACHE_TTL,
+  withStakingCache,
+} from "@/lib/staking/stakingCache.server";
 import type {
   StakingGlobalStats,
   StakingTierPosition,
@@ -28,16 +33,25 @@ import type {
 let stakingClient: SolanaStakingClient | null = null;
 let mintDecimalsPromise: Promise<number> | null = null;
 
+function getStakingRpcUrl(): string {
+  return (
+    process.env.MEDUSA_STAKING_RPC_URL?.trim() ||
+    process.env.MEDUSA_BADGE_RPC_URL?.trim() ||
+    getSolanaRpcUrl()
+  );
+}
+
 function getCluster(): ICluster {
-  return getSolanaNetwork() === "mainnet-beta"
-    ? ICluster.Mainnet
-    : ICluster.Devnet;
+  if (getSolanaNetwork() === "mainnet-beta") {
+    return ICluster.Mainnet;
+  }
+  return ICluster.Devnet;
 }
 
 function getClient(): SolanaStakingClient {
   if (!stakingClient) {
     stakingClient = new SolanaStakingClient({
-      clusterUrl: getSolanaRpcUrl(),
+      clusterUrl: getStakingRpcUrl(),
       cluster: getCluster(),
     });
   }
@@ -263,7 +277,35 @@ async function buildTierPosition(
   return positions;
 }
 
-export async function fetchStakingGlobalStats(): Promise<StakingGlobalStats> {
+async function fetchActiveStakerCount(
+  client: SolanaStakingClient,
+  tiers: StreamflowTierPool[],
+): Promise<number> {
+  return withStakingCache(
+    STAKING_CACHE_KEYS.activeStakers,
+    STAKING_CACHE_TTL.activeStakersSeconds,
+    async () => {
+      const uniqueStakers = new Set<string>();
+      for (const tier of tiers) {
+        try {
+          const entries = await client.searchStakeEntries({
+            stakePool: new PublicKey(tier.stakePool),
+          });
+          for (const entry of entries) {
+            if (isActiveStakeEntry(entry.account)) {
+              uniqueStakers.add(entry.account.payer.toBase58());
+            }
+          }
+        } catch (error) {
+          console.error(`[staking/stats] active stakers ${tier.days}d`, error);
+        }
+      }
+      return uniqueStakers.size;
+    },
+  );
+}
+
+async function fetchStakingGlobalStatsUncached(): Promise<StakingGlobalStats> {
   const configured = isStreamflowStakingConfigured();
   if (!configured) {
     return {
@@ -281,7 +323,6 @@ export async function fetchStakingGlobalStats(): Promise<StakingGlobalStats> {
   const client = getClient();
   const decimals = await getMintDecimals();
   const tiers = getStreamflowTierPools();
-  const uniqueStakers = new Set<string>();
   let totalStakedRaw = BigInt(0);
   let pendingRewardPoolRaw = BigInt(0);
   let totalBuybacksRaw = BigInt(0);
@@ -290,64 +331,61 @@ export async function fetchStakingGlobalStats(): Promise<StakingGlobalStats> {
   let nextDripAt: string | null = null;
 
   for (const tier of tiers) {
-    const pool = await client.getStakePool(tier.stakePool);
-    totalStakedRaw += BigInt(pool.totalStake.toString());
-
-    const entries = await client.searchStakeEntries({
-      stakePool: new PublicKey(tier.stakePool),
-    });
-    for (const entry of entries) {
-      if (isActiveStakeEntry(entry.account)) {
-        uniqueStakers.add(entry.account.payer.toBase58());
-      }
-    }
-
-    const topUpRaw = await getTopUpBalanceRaw(tier.topUpAddress);
-    pendingRewardPoolRaw += topUpRaw;
-
-    const rewardPoolAccount =
-      await client.programs.rewardPoolDynamicProgram.account.rewardPool.fetch(
-        tier.rewardPool,
-      );
-    const claimedRaw = BigInt(rewardPoolAccount.claimedAmount.toString());
-    const vaultRaw = await getTokenAccountRawAmount(
-      rewardPoolAccount.vault.toBase58(),
-    );
-
-    totalClaimedRaw += claimedRaw;
-    totalBuybacksRaw += topUpRaw + vaultRaw + claimedRaw;
-
     try {
-      const fundDelegate =
-        await client.programs.rewardPoolDynamicProgram.account.fundDelegate.fetch(
-          new PublicKey(tier.fundDelegate),
-        );
-      const lastFundSeconds = bnToSeconds(fundDelegate.lastFundTs);
-      if (lastFundSeconds > 0) {
-        const dripAt = new Date(lastFundSeconds * 1000).toISOString();
-        if (!lastDripAt || dripAt > lastDripAt) {
-          lastDripAt = dripAt;
-        }
-      }
+      const pool = await client.getStakePool(tier.stakePool);
+      totalStakedRaw += BigInt(pool.totalStake.toString());
 
-      const tierNextDrip = deriveNextFundDrip(
-        fundDelegate.lastFundTs,
-        fundDelegate.period,
-        fundDelegate.expiryTs,
+      const topUpRaw = await getTopUpBalanceRaw(tier.topUpAddress);
+      pendingRewardPoolRaw += topUpRaw;
+
+      const rewardPoolAccount =
+        await client.programs.rewardPoolDynamicProgram.account.rewardPool.fetch(
+          tier.rewardPool,
+        );
+      const claimedRaw = BigInt(rewardPoolAccount.claimedAmount.toString());
+      const vaultRaw = await getTokenAccountRawAmount(
+        rewardPoolAccount.vault.toBase58(),
       );
-      if (
-        tierNextDrip &&
-        (!nextDripAt || tierNextDrip < nextDripAt)
-      ) {
-        nextDripAt = tierNextDrip;
+
+      totalClaimedRaw += claimedRaw;
+      totalBuybacksRaw += topUpRaw + vaultRaw + claimedRaw;
+
+      try {
+        const fundDelegate =
+          await client.programs.rewardPoolDynamicProgram.account.fundDelegate.fetch(
+            new PublicKey(tier.fundDelegate),
+          );
+        const lastFundSeconds = bnToSeconds(fundDelegate.lastFundTs);
+        if (lastFundSeconds > 0) {
+          const dripAt = new Date(lastFundSeconds * 1000).toISOString();
+          if (!lastDripAt || dripAt > lastDripAt) {
+            lastDripAt = dripAt;
+          }
+        }
+
+        const tierNextDrip = deriveNextFundDrip(
+          fundDelegate.lastFundTs,
+          fundDelegate.period,
+          fundDelegate.expiryTs,
+        );
+        if (
+          tierNextDrip &&
+          (!nextDripAt || tierNextDrip < nextDripAt)
+        ) {
+          nextDripAt = tierNextDrip;
+        }
+      } catch (error) {
+        console.error(`[staking/stats] fund delegate ${tier.days}d`, error);
       }
     } catch (error) {
-      console.error(`[staking/stats] fund delegate ${tier.days}d`, error);
+      console.error(`[staking/stats] tier ${tier.days}d`, error);
     }
   }
 
+  const activeStakers = await fetchActiveStakerCount(client, tiers);
+
   return {
-    activeStakers: uniqueStakers.size,
+    activeStakers,
     totalStakedMedusa: rawToMedusaAmount(totalStakedRaw, decimals),
     totalBuybacksMedusa: rawToMedusaAmount(totalBuybacksRaw, decimals),
     totalRewardsClaimedMedusa: rawToMedusaAmount(totalClaimedRaw, decimals),
@@ -358,7 +396,19 @@ export async function fetchStakingGlobalStats(): Promise<StakingGlobalStats> {
   };
 }
 
-export async function fetchStakingUserPosition(
+export async function fetchStakingGlobalStats(): Promise<StakingGlobalStats> {
+  if (!isStreamflowStakingConfigured()) {
+    return fetchStakingGlobalStatsUncached();
+  }
+
+  return withStakingCache(
+    STAKING_CACHE_KEYS.stats,
+    STAKING_CACHE_TTL.statsSeconds,
+    fetchStakingGlobalStatsUncached,
+  );
+}
+
+async function fetchStakingUserPositionUncached(
   wallet: string,
 ): Promise<StakingUserPosition | null> {
   if (!isStreamflowStakingConfigured()) {
@@ -431,6 +481,20 @@ export async function fetchStakingUserPosition(
       ) / positions.length,
     positions,
   };
+}
+
+export async function fetchStakingUserPosition(
+  wallet: string,
+): Promise<StakingUserPosition | null> {
+  if (!isStreamflowStakingConfigured()) {
+    return fetchStakingUserPositionUncached(wallet);
+  }
+
+  return withStakingCache(
+    STAKING_CACHE_KEYS.position(wallet),
+    STAKING_CACHE_TTL.positionSeconds,
+    () => fetchStakingUserPositionUncached(wallet),
+  );
 }
 
 export async function getRewardPoolNonce(rewardPool: string): Promise<number> {
