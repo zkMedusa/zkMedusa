@@ -9,6 +9,8 @@ import {
   PublicKey,
   Transaction,
   type Connection,
+  type TransactionInstruction,
+  type VersionedTransaction,
 } from "@solana/web3.js";
 import type { SignerWalletAdapter } from "@solana/wallet-adapter-base";
 import { getSolanaNetwork, getSolanaRpcUrl } from "@/lib/passport/config";
@@ -49,6 +51,11 @@ async function getStakingClient() {
   return sdkPromise;
 }
 
+type WalletSendTransaction = (
+  transaction: Transaction | VersionedTransaction,
+  connection: Connection,
+) => Promise<string>;
+
 function getInvoker(
   wallet: SignerWalletAdapter,
   publicKey: PublicKey,
@@ -57,6 +64,36 @@ function getInvoker(
     return wallet;
   }
   return { ...wallet, publicKey } as SignerWalletAdapter;
+}
+
+async function executeStreamflowInstructions(
+  connection: Connection,
+  invoker: SignerWalletAdapter,
+  sendTransaction: WalletSendTransaction,
+  ixs: TransactionInstruction[],
+): Promise<string> {
+  const [
+    {
+      createAndEstimateTransaction,
+      prepareBaseInstructions,
+      prepareTransaction,
+      unwrapExecutionParams,
+    },
+  ] = await Promise.all([import("@streamflow/common") as Promise<CommonModule>]);
+
+  const executionParams = unwrapExecutionParams({ invoker }, connection);
+  const preparedIxs = await createAndEstimateTransaction(
+    async (params) =>
+      prepareBaseInstructions(connection, params).concat(ixs),
+    executionParams,
+  );
+  const { tx } = await prepareTransaction(
+    connection,
+    preparedIxs,
+    invoker.publicKey!,
+  );
+
+  return sendTransaction(tx, connection);
 }
 
 async function findAvailableStakeNonce(
@@ -80,10 +117,7 @@ async function findAvailableStakeNonce(
 async function ensureStakeTokenAccounts(
   connection: Connection,
   wallet: SignerWalletAdapter,
-  sendTransaction: (
-    transaction: Transaction,
-    connection: Connection,
-  ) => Promise<string>,
+  sendTransaction: WalletSendTransaction,
   mint: PublicKey,
   stakePool: PublicKey,
 ): Promise<void> {
@@ -135,10 +169,7 @@ export async function stakeMedusa({
   wallet: SignerWalletAdapter;
   publicKey: PublicKey;
   connection: Connection;
-  sendTransaction: (
-    transaction: Transaction,
-    connection: Connection,
-  ) => Promise<string>;
+  sendTransaction: WalletSendTransaction;
   tierDays: number;
   amount: string;
 }): Promise<string> {
@@ -171,7 +202,7 @@ export async function stakeMedusa({
     new PublicKey(tier.stakePool),
   );
 
-  const { txId } = await client.stakeAndCreateEntries(
+  const { ixs } = await client.prepareStakeAndCreateEntriesInstructions(
     {
       stakePool: tier.stakePool,
       stakePoolMint: mint.toBase58(),
@@ -190,16 +221,25 @@ export async function stakeMedusa({
     { invoker },
   );
 
-  return txId;
+  return executeStreamflowInstructions(
+    connection,
+    invoker,
+    sendTransaction,
+    ixs,
+  );
 }
 
 export async function claimTierRewards({
   wallet,
   publicKey,
+  connection,
+  sendTransaction,
   position,
 }: {
   wallet: SignerWalletAdapter;
   publicKey: PublicKey;
+  connection: Connection;
+  sendTransaction: WalletSendTransaction;
   position: StakingTierPosition;
 }): Promise<string> {
   const invoker = getInvoker(wallet, publicKey);
@@ -232,19 +272,25 @@ export async function claimTierRewards({
     { invoker },
   );
 
-  const { signature } = await client.execute([createAtaIx, ...claimIxs.ixs], {
+  return executeStreamflowInstructions(
+    connection,
     invoker,
-  });
-  return signature;
+    sendTransaction,
+    [createAtaIx, ...claimIxs.ixs],
+  );
 }
 
 export async function claimAllStakingRewards({
   wallet,
   publicKey,
+  connection,
+  sendTransaction,
   positions,
 }: {
   wallet: SignerWalletAdapter;
   publicKey: PublicKey;
+  connection: Connection;
+  sendTransaction: WalletSendTransaction;
   positions: StakingTierPosition[];
 }): Promise<string> {
   const claimable = positions.filter(
@@ -256,7 +302,13 @@ export async function claimAllStakingRewards({
 
   let lastSignature = "";
   for (const position of claimable) {
-    lastSignature = await claimTierRewards({ wallet, publicKey, position });
+    lastSignature = await claimTierRewards({
+      wallet,
+      publicKey,
+      connection,
+      sendTransaction,
+      position,
+    });
   }
   return lastSignature;
 }
@@ -264,10 +316,14 @@ export async function claimAllStakingRewards({
 export async function unstakeTier({
   wallet,
   publicKey,
+  connection,
+  sendTransaction,
   position,
 }: {
   wallet: SignerWalletAdapter;
   publicKey: PublicKey;
+  connection: Connection;
+  sendTransaction: WalletSendTransaction;
   position: StakingTierPosition;
 }): Promise<string> {
   if (!position.canUnstake) {
@@ -277,7 +333,7 @@ export async function unstakeTier({
   const invoker = getInvoker(wallet, publicKey);
   const mint = getMedusaMintAddress();
   const { client } = await getStakingClient();
-  const { txId } = await client.unstakeAndClaim(
+  const { ixs } = await client.prepareUnstakeAndClaimInstructions(
     {
       stakePool: position.stakePool,
       stakePoolMint: mint,
@@ -294,7 +350,12 @@ export async function unstakeTier({
     { invoker },
   );
 
-  return txId;
+  return executeStreamflowInstructions(
+    connection,
+    invoker,
+    sendTransaction,
+    ixs,
+  );
 }
 
 export function getConfiguredStakingTiers() {

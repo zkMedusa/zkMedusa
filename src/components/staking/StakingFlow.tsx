@@ -101,6 +101,14 @@ function PanelButton({
 
 function formatStreamflowError(error: unknown): string {
   if (error instanceof Error) {
+    const message = error.message.toLowerCase();
+    if (
+      message.includes("blocked") ||
+      message.includes("malicious") ||
+      message.includes("blowfish")
+    ) {
+      return "Phantom blocked this request (Blowfish security). Tap “Proceed anyway” if you trust zkmedusa.com, or use another wallet. We’re requesting a whitelist from Blowfish.";
+    }
     return error.message;
   }
   return "Transaction failed. Try again.";
@@ -216,7 +224,7 @@ export default function StakingFlow() {
     busyAction === null;
 
   const canClaim =
-    Boolean(publicKey && walletAdapter) &&
+    Boolean(publicKey && walletAdapter && sendTransaction) &&
     claimableTotal > 0 &&
     busyAction === null;
 
@@ -269,6 +277,8 @@ export default function StakingFlow() {
       const signature = await claimAllStakingRewards({
         wallet: walletAdapter,
         publicKey,
+        connection,
+        sendTransaction,
         positions: position.positions,
       });
       toast.success(`Rewards claimed. Tx: ${signature.slice(0, 8)}…`);
@@ -281,7 +291,7 @@ export default function StakingFlow() {
   };
 
   const handleUnstake = async (stakeEntry: string) => {
-    if (!walletAdapter || !publicKey || !position) {
+    if (!walletAdapter || !sendTransaction || !publicKey || !position) {
       return;
     }
 
@@ -302,6 +312,8 @@ export default function StakingFlow() {
       const signature = await unstakeTier({
         wallet: walletAdapter,
         publicKey,
+        connection,
+        sendTransaction,
         position: tierPosition,
       });
       toast.success(`Unstaked successfully. Tx: ${signature.slice(0, 8)}…`);
