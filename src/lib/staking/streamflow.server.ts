@@ -162,6 +162,19 @@ async function fetchDynamicRewardEntry(
   }
 }
 
+/** Matches Streamflow `SCALE_PRECISION_FACTOR` (effective stake fixed-point). */
+const STAKE_WEIGHT_SCALE_BN = new BN(1_000_000_000);
+
+/**
+ * Divisor for dynamic-pool reward accumulators. `rewards_state` is an
+ * ever-increasing "reward per weighted stake" counter; effective stake is stored
+ * with 1e9 precision, so the on-chain math uses 10^(rewardsStatePrecision + 18).
+ */
+function getDynamicRewardsDivisor(precisionExponent: number): BN {
+  const statePrecision = new BN(10).pow(new BN(precisionExponent));
+  return statePrecision.mul(STAKE_WEIGHT_SCALE_BN).mul(STAKE_WEIGHT_SCALE_BN);
+}
+
 /** Dynamic pools use `rewards_state` accumulators — not `calcRewards` (fixed pools only). */
 function calcDynamicClaimable(
   stakeEntry: StakeEntry,
@@ -178,14 +191,20 @@ function calcDynamicClaimable(
     return new BN(0);
   }
 
-  const precision = new BN(10).pow(new BN(rewardPool.rewardsStatePrecision));
+  const divisor = getDynamicRewardsDivisor(rewardPool.rewardsStatePrecision);
   const delta = poolState.sub(entryState);
   const effective = new BN(stakeEntry.effectiveAmount.toString());
-  const earned = delta.mul(effective).div(precision);
+  const earned = delta.mul(effective).div(divisor);
   const claimed = new BN(rewardEntry.claimedAmount.toString());
   const claimable = earned.sub(claimed);
 
   return claimable.lt(new BN(0)) ? new BN(0) : claimable;
+}
+
+/** Ignore probe/dust entries below 0.01 whole tokens (e.g. 1 raw unit on 6-decimal mints). */
+function isMeaningfulStakeAmount(amount: BN, decimals: number): boolean {
+  const minDisplayRaw = new BN(10).pow(new BN(Math.max(0, decimals - 2)));
+  return amount.gte(minDisplayRaw);
 }
 
 async function buildTierPosition(
@@ -199,8 +218,10 @@ async function buildTierPosition(
     payer: new PublicKey(wallet),
   });
 
-  const activeEntries = entries.filter((entry) =>
-    isActiveStakeEntry(entry.account),
+  const activeEntries = entries.filter(
+    (entry) =>
+      isActiveStakeEntry(entry.account) &&
+      isMeaningfulStakeAmount(entry.account.amount, decimals),
   );
   if (activeEntries.length === 0) {
     return [];

@@ -66,6 +66,22 @@ function getInvoker(
   return { ...wallet, publicKey } as SignerWalletAdapter;
 }
 
+async function getDynamicClaimGovernorArgs(
+  client: InstanceType<StakingClientModule["SolanaStakingClient"]>,
+  rewardPoolAddress: string,
+): Promise<{ governor?: PublicKey }> {
+  const rewardPool =
+    await client.programs.rewardPoolDynamicProgram.account.rewardPool.fetch(
+      rewardPoolAddress,
+    );
+
+  if (rewardPool.governor.equals(PublicKey.default)) {
+    return { governor: null as unknown as undefined };
+  }
+
+  return { governor: rewardPool.governor };
+}
+
 async function executeStreamflowInstructions(
   connection: Connection,
   invoker: SignerWalletAdapter,
@@ -259,6 +275,10 @@ export async function claimTierRewards({
     new PublicKey(mint),
     TOKEN_2022_PROGRAM_ID,
   );
+  const governorArgs = await getDynamicClaimGovernorArgs(
+    client,
+    position.rewardPool,
+  );
   const claimIxs = await client.prepareClaimRewardsInstructions(
     {
       stakePool: position.stakePool,
@@ -268,6 +288,7 @@ export async function claimTierRewards({
       rewardMint: mint,
       rewardPoolType: "dynamic",
       tokenProgramId: TOKEN_2022_PROGRAM_ID.toBase58(),
+      ...governorArgs,
     },
     { invoker },
   );
@@ -333,6 +354,10 @@ export async function unstakeTier({
   const invoker = getInvoker(wallet, publicKey);
   const mint = getMedusaMintAddress();
   const { client } = await getStakingClient();
+  const governorArgs = await getDynamicClaimGovernorArgs(
+    client,
+    position.rewardPool,
+  );
   const { ixs } = await client.prepareUnstakeAndClaimInstructions(
     {
       stakePool: position.stakePool,
@@ -344,6 +369,7 @@ export async function unstakeTier({
           nonce: position.rewardPoolNonce,
           mint,
           rewardPoolType: "dynamic",
+          ...governorArgs,
         },
       ],
     },
